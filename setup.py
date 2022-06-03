@@ -7,12 +7,11 @@ from setuptools import setup
 
 VERSION = '0.0.2'
 
-tests_require = ['pytest']
+tests_require = ['pytest', 'responses']
 
 requires = [
     "urllib3",
     "requests",
-    "response"
 ]
 
 if __name__ == '__main__':
