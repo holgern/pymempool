@@ -1,0 +1,21 @@
+include setup.py
+include README.md
+include LICENSE
+include *.txt
+include MANIFEST.in
+
+# All source files
+recursive-include pymempool *
+
+# Add build and testing tools
+include pytest.ini
+
+# Exclude what we don't want to include
+prune build
+prune dist
+prune doc/build
+prune util
+prune */__pycache__
+
+global-exclude *.py[cod] *.egg *.egg-info
+global-exclude *~ *.bak *.swp _pyedflib.c

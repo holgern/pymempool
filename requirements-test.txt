@@ -1,0 +1,10 @@
+pip
+setuptools
+wheel
+flake8
+nose
+pytest
+coverage
+urllib3
+requests
+response

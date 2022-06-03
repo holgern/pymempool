@@ -5,7 +5,7 @@ import sys
 
 from setuptools import setup
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 
 tests_require = ['pytest']
 
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     setup(
         name='pymempool',
         version=VERSION,
-        description='Python Api for mempool.info',
+        description='Python Api for mempool.space',
         long_description=open('README.md').read(),
         long_description_content_type="text/markdown",
         author='Holger Nahrstaedt',

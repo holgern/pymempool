@@ -1,6 +1,6 @@
-# mempool.info API wrapper
+# mempool.space API wrapper
 
-Python3 wrapper around the [mempool.info](https://www.mempool.info) API (V1)
+Python3 wrapper around the [mempool.space](https://www.mempool.space) API (V1)
 
 ### Installation
 PyPI
