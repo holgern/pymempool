@@ -1,10 +1,7 @@
 import logging
 
-import click
 import typer
 from rich.console import Console
-from rich.table import Table
-
 
 log = logging.getLogger(__name__)
 app = typer.Typer()
