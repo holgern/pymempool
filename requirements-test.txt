@@ -8,3 +8,4 @@ coverage
 urllib3
 requests
 responses
+tox
