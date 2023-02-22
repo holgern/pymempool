@@ -50,6 +50,7 @@ legacy_tox_ini = """
 deps =
     pytest
     pytest-cov[all]
+    responses
 commands =
     pytest
 """
