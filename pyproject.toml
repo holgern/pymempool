@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["pymempool"]
+
+[project]
+name = "pymempool"
+authors = [
+  { name="Holger Nahrstaedt", email="nahrstaedt@gmail.com" },
+]
+description = "Python Api for mempool.space"
+keywords = ["mempool", "btc"]
+urls = { Homepage = "https://github.com/holgern/pymempool" }
+readme = "README.md"
+requires-python = ">3.7.0"
+dependencies = [
+    "urllib3",
+    "typer",
+    "rich",
+    "requests"
+]
+license = {file = "LICENSE"}
+classifiers=[
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Topic :: Software Development :: Libraries',
+]
+
+dynamic=["version"]
+
+[tool.setuptools_scm]
+write_to = "pymempool/_version.py"
+
+[project.scripts]
+pymempool = "pymempool.cli:app"
+
+[tool.tox]
+legacy_tox_ini = """
+
+[testenv]
+deps =
+    pytest
+    pytest-cov[all]
+commands =
+    pytest
+"""
