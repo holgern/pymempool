@@ -22,16 +22,53 @@ mp = MempoolAPI()
 ```
 
 
-### API documentation
+### API Documentation
 https://mempool.space/docs/api/rest
 
-### Test
+## Test Suite
 
-Run unit tests with:
+### Set up the test environment
+
+Install the test-runner dependencies:
+```
+pip3 install -r requirements-test.txt
+```
+
+Then make the `pymempool` python module visible/importable to the tests by installing the local dev dir as an editable module:
+```
+# from the repo root
+pip3 install -e .
+```
+
+### Running the test suite
+Run the whole test suite:
+```
+# from the repo root
+pytest
+```
+
+Run a specific test file:
+```
+pytest test/test_this_file.py
+```
+
+Run a specific test:
+```
+pytest test/test_this_file.py::test_this_specific_test
+```
+
+### Running tests with tox
+
+Install tox
 
 ```
-# after installing pytest using pip3
-pytest tests
+pip install tox
+```
+
+Run tests
+
+```
+tox
 ```
 
 ## License

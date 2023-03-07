@@ -3,7 +3,7 @@ import warnings
 
 import requests
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
+from requests.packages import urllib3
 
 
 class MempoolAPI:
@@ -19,7 +19,7 @@ class MempoolAPI:
         if not request_verify:
             warnings.filterwarnings('ignore', message='Unverified HTTPS request')
         self.session = requests.Session()
-        retries = Retry(
+        retries = urllib3.util.retry.Retry(
             total=retries, backoff_factor=0.5, status_forcelist=[502, 503, 504]
         )
         self.session.mount('https://', HTTPAdapter(max_retries=retries))
@@ -35,11 +35,9 @@ class MempoolAPI:
             )
         except requests.exceptions.RequestException:
             raise
-
         try:
             response.raise_for_status()
-            content = json.loads(response.content.decode('utf-8'))
-            return content
+
         except Exception:
             # check if json (with error message) is returned
             try:
@@ -49,6 +47,15 @@ class MempoolAPI:
             except json.decoder.JSONDecodeError:
                 pass
             raise
+        try:
+            decoded_content = response.content.decode('utf-8')
+            content = json.loads(decoded_content)
+            return content
+        except UnicodeDecodeError:
+            return response.content
+        except json.decoder.JSONDecodeError:
+            return response.content.decode('utf-8')
+        raise
 
     def __send(self, url, data):
         # print(url)
@@ -189,10 +196,22 @@ class MempoolAPI:
         """Returns the 10 newest blocks starting at the tip or at :start_height if
         specified."""
         if start_height is None:
-            api_url = f'{self.api_base_url}blocks'
+            api_url = f'{self.api_base_url}v1/blocks'
         else:
             start_height = int(start_height)
-            api_url = f'{self.api_base_url}blocks/{start_height}'
+            api_url = f'{self.api_base_url}v1/blocks/{start_height}'
+        return self.__request(api_url)
+
+    def get_blocks_bulk(self, minHeight, maxHeight=None):
+        """Returns the 10 newest blocks starting at the tip or at :start_height if
+        specified."""
+        if maxHeight is None:
+            minHeight = int(minHeight)
+            api_url = f'{self.api_base_url}v1/blocks-bulk/{minHeight}'
+        else:
+            minHeight = int(minHeight)
+            maxHeight = int(maxHeight)
+            api_url = f'{self.api_base_url}v1/blocks-bulk/{minHeight}/{maxHeight}'
         return self.__request(api_url)
 
     def get_mempool_blocks_fee(self):
