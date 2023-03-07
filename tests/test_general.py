@@ -1,5 +1,7 @@
 import unittest
+
 from pymempool import MempoolAPI
+
 
 class TestGeneral(unittest.TestCase):
     def test_difficulty(self):
