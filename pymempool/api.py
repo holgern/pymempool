@@ -202,16 +202,114 @@ class MempoolAPI:
             api_url = f'{self.api_base_url}v1/blocks/{start_height}'
         return self.__request(api_url)
 
-    def get_blocks_bulk(self, minHeight, maxHeight=None):
-        """Returns the 10 newest blocks starting at the tip or at :start_height if
-        specified."""
-        if maxHeight is None:
-            minHeight = int(minHeight)
-            api_url = f'{self.api_base_url}v1/blocks-bulk/{minHeight}'
+    def get_blocks_bulk(self, min_height, max_height=None):
+        """Returns details on the range of blocks between :min_height and :max_height,
+        inclusive, up to 10 blocks.
+
+        If :max_height is not specified, it defaults to the current tip.
+        """
+        if max_height is None:
+            min_height = int(min_height)
+            api_url = f'{self.api_base_url}v1/blocks-bulk/{min_height}'
         else:
-            minHeight = int(minHeight)
-            maxHeight = int(maxHeight)
-            api_url = f'{self.api_base_url}v1/blocks-bulk/{minHeight}/{maxHeight}'
+            min_height = int(min_height)
+            max_height = int(max_height)
+            api_url = f'{self.api_base_url}v1/blocks-bulk/{min_height}/{max_height}'
+        return self.__request(api_url)
+
+    def get_mining_pools(self, time_period):
+        """Returns a list of all known mining pools ordered by blocks found over the
+        specified trailing time_period."""
+        api_url = f'{self.api_base_url}v1/mining/pools/{time_period}'
+        return self.__request(api_url)
+
+    def get_mining_pool(self, slug):
+        """Returns details about the mining pool specified by slug."""
+        api_url = f'{self.api_base_url}v1/mining/pool/{slug}'
+        return self.__request(api_url)
+
+    def get_mining_pool_hashrates(self, time_period):
+        """Returns average hashrates (and share of total hashrate) of mining pools
+        active in the specified trailing time_period, in descending order of
+        hashrate."""
+        api_url = f'{self.api_base_url}v1/mining/hashrate/pools/{time_period}'
+        return self.__request(api_url)
+
+    def get_mining_pool_hashrate(self, slug):
+        """Returns all known hashrate data for the mining pool specified by slug.
+
+        Hashrate values are weekly averages.
+        """
+        api_url = f'{self.api_base_url}v1/mining/pool/{slug}/hashrate'
+        return self.__request(api_url)
+
+    def get_mining_pool_block(self, slug, block_height=None):
+        """Returns past 10 blocks mined by the specified mining pool (slug) before the
+        specified block_height.
+
+        If no block_height is specified, the mining pool's 10 most
+        recent blocks are returned.
+        """
+        if block_height is None:
+            api_url = f'{self.api_base_url}v1/mining/pool/{slug}/blocks'
+        else:
+            api_url = f'{self.api_base_url}v1/mining/pool/{slug}/blocks/{block_height}'
+        return self.__request(api_url)
+
+    def get_hashrate(self, time_period=None):
+        """Returns network-wide hashrate and difficulty figures over the specified
+        trailing :timePeriod:"""
+        if time_period is None:
+            api_url = f'{self.api_base_url}v1/mining/hashrate'
+        else:
+            api_url = f'{self.api_base_url}v1/mining/hashrate/{time_period}'
+        return self.__request(api_url)
+
+    def get_reward_stats(self, block_count):
+        """Returns block reward and total transactions confirmed for the past.
+
+        :blockCount blocks.
+        """
+        api_url = f'{self.api_base_url}v1/mining/reward-stats/{block_count}'
+        return self.__request(api_url)
+
+    def get_block_fees(self, time_period):
+        """Returns average total fees for blocks in the specified :timePeriod, ordered
+        oldest to newest.
+
+        :timePeriod can be any of the following:
+        24h, 3d, 1w, 1m, 3m, 6m, 1y, 2y, 3y.
+        """
+        api_url = f'{self.api_base_url}v1/mining/blocks/fees/{time_period}'
+        return self.__request(api_url)
+
+    def get_block_rewards(self, time_period):
+        """Returns average block rewards for blocks in the specified :timePeriod,
+        ordered oldest to newest.
+
+        :timePeriod can be any of the following:
+        24h, 3d, 1w, 1m, 3m, 6m, 1y, 2y, 3y.
+        """
+        api_url = f'{self.api_base_url}v1/mining/blocks/rewards/{time_period}'
+        return self.__request(api_url)
+
+    def get_block_feerates(self, time_period):
+        """Returns average feerate percentiles for blocks in the specified.
+
+        :timePeriod, ordered oldest to newest. :timePeriod can be any of
+        the following: 24h, 3d, 1w, 1m, 3m, 6m, 1y, 2y, 3y.
+        """
+        api_url = f'{self.api_base_url}v1/mining/blocks/fee-rates/{time_period}'
+        return self.__request(api_url)
+
+    def get_block_sizes_and_weights(self, time_period):
+        """Returns average size (bytes) and average weight (weight units) for blocks in
+        the specified :timePeriod, ordered oldest to newest.
+
+        :timePeriod can be any of the following:
+        24h, 3d, 1w, 1m, 3m, 6m, 1y, 2y, 3y.
+        """
+        api_url = f'{self.api_base_url}v1/mining/blocks/sizes-weights/{time_period}'
         return self.__request(api_url)
 
     def get_mempool_blocks_fee(self):
