@@ -14,7 +14,7 @@ jobs:
         python-version: 3.9
     - name: 'generate report'
       run: |
-        pip install coverage click pytest pytest-cov
+        pip install -r requirements-test.txt
         pip install -e .
         coverage run -m pytest
     - name: Upload coverage to Codecov

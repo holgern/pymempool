@@ -4,6 +4,8 @@ wheel
 flake8
 nose
 pytest
+click
+pytest-cov
 coverage
 urllib3
 requests
