@@ -20,7 +20,7 @@ class MempoolAPI:
             warnings.filterwarnings('ignore', message='Unverified HTTPS request')
         self.session = requests.Session()
         retries = urllib3.util.retry.Retry(
-            total=retries, backoff_factor=0.5, status_forcelist=[502, 503, 504]
+            total=retries, backoff_factor=0.5, status_forcelist=[502, 503, 504, 429]
         )
         self.session.mount('https://', HTTPAdapter(max_retries=retries))
 
