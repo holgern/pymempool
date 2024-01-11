@@ -399,3 +399,131 @@ class MempoolAPI:
         txHex = txHex.replace(' ', '')
         api_url = f'{self.api_base_url}tx'
         return self.__send(api_url, txHex)
+
+    def get_network_stats(self, interval):
+        """Returns network-wide stats such as total number of channels and nodes, total
+        capacity, and average/median fee figures.
+
+        Pass one of the following for interval: latest, 24h, 3d, 1w, 1m,
+        3m, 6m, 1y, 2y, 3y.
+        """
+        api_url = f'{self.api_base_url}v1/lightning/statistics/{interval}'
+        return self.__request(api_url)
+
+    def get_nodes_channels(self, query):
+        """Returns Lightning nodes and channels that match a full-text, case-insensitive
+        search :query across node aliases, node pubkeys, channel IDs, and short channel
+        IDs."""
+        api_url = f'{self.api_base_url}v1/lightning/search?searchText=:{query}'
+        return self.__request(api_url)
+
+    def get_nodes_in_country(self, country):
+        """Returns a list of Lightning nodes running on clearnet in the requested
+        country, where :country is an ISO Alpha-2 country code."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/country/{country}'
+        return self.__request(api_url)
+
+    def get_node_stat_per_country(self):
+        """Returns aggregate capacity and number of clearnet nodes per country.
+
+        Capacity figures are in satoshis.
+        """
+        api_url = f'{self.api_base_url}v1/lightning/nodes/countries'
+        return self.__request(api_url)
+
+    def get_isp_nodes(self, isp):
+        """Returns a list of nodes hosted by a specified isp, where isp is an ISP's
+        ASN."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/nodes/isp/{isp}'
+        return self.__request(api_url)
+
+    def get_node_stat_per_isp(self):
+        """Returns aggregate capacity, number of nodes, and number of channels per ISP.
+
+        Capacity figures are in satoshis.
+        """
+        api_url = f'{self.api_base_url}v1/lightning/nodes/isp-ranking'
+        return self.__request(api_url)
+
+    def get_top_100_nodes(self):
+        """Returns two lists of the top 100 nodes: one ordered by liquidity (aggregate
+        channel capacity) and the other ordered by connectivity (number of open
+        channels)."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/rankings'
+        return self.__request(api_url)
+
+    def get_top_100_nodes_by_liquidity(self):
+        """Returns a list of the top 100 nodes by liquidity (aggregate channel
+        capacity)."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/rankings/liquidity'
+        return self.__request(api_url)
+
+    def get_top_100_nodes_by_connectivity(self):
+        """Returns a list of the top 100 nodes by connectivity (number of open
+        channels)."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/rankings/connectivity'
+        return self.__request(api_url)
+
+    def get_top_100_oldest_nodes(self):
+        """Returns a list of the top 100 oldest nodes."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/rankings/age'
+        return self.__request(api_url)
+
+    def get_node_stats(self, pubkey):
+        """Returns details about a node with the given pubKey."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/{pubkey}'
+        return self.__request(api_url)
+
+    def get_historical_node_stats(self, pubkey):
+        """Returns details about a node with the given pubKey."""
+        api_url = f'{self.api_base_url}v1/lightning/nodes/{pubkey}/statistics'
+        return self.__request(api_url)
+
+    def get_channel(self, channelid):
+        """Returns info about a Lightning channel with the given :channelId."""
+        api_url = f'{self.api_base_url}v1/lightning/channels/{channelid}'
+        return self.__request(api_url)
+
+    def get_channel_from_txid(self, txids):
+        """Returns info about a Lightning channel with the given :channelId."""
+        api_url = f'{self.api_base_url}v1/lightning/channels/txids'
+        if isinstance(txids, "str"):
+            first = True
+            for txid in txids.split(","):
+                if first:
+                    api_url += f'?txId[]={txid}'
+                    first = False
+                else:
+                    api_url += f'&txId[]={txid}'
+        elif isinstance(txids, list):
+            first = True
+            for txid in txids:
+                if first:
+                    api_url += f'?txId[]={txid}'
+                    first = True
+                else:
+                    api_url += f'&txId[]={txid}'
+        return self.__request(api_url)
+
+    def get_channels_from_node_pubkey(self, pubkey, channel_status, index=None):
+        """Returns a list of a node's channels given its :pubKey.
+
+        Ten channels are returned at a time. Use :index for paging.
+        :channelStatus can be open, active, or closed.
+        """
+        api_url = f'{self.api_base_url}v1/lightning/channels'
+        api_url += f'?pub_key={pubkey}&status={channel_status}'
+        if index is not None:
+            api_url += f'&index={index}'
+        return self.__request(api_url)
+
+    def get_channel_geodata(self):
+        """Returns a list of channels with corresponding node geodata."""
+        api_url = f'{self.api_base_url}v1/lightning/channels-geo'
+        return self.__request(api_url)
+
+    def get_channel_geodata_for_node(self, pubkey):
+        """Returns a list of channels with corresponding geodata for a node with the
+        given :pubKey."""
+        api_url = f'{self.api_base_url}v1/lightning/channels-geo/{pubkey}'
+        return self.__request(api_url)

@@ -11,3 +11,5 @@ urllib3
 requests
 responses
 tox
+rich
+typer
