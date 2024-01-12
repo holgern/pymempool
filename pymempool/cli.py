@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 app = typer.Typer()
 console = Console()
 
-state = {"verbose": 3, "api": "https://mempool.space/api/"}
+state = {}
 
 
 @app.command()
@@ -99,7 +99,11 @@ def block(hash: str):
 
 
 @app.callback()
-def main(verbose: int = 3, api: str = "https://mempool.space/api/"):
+def main(
+    verbose: int = 3,
+    api: str = "https://mempool.space/api/,https://mempool.emzy.de/api/,"
+    "https://mempool.bitcoin-21.org/api/",
+):
     """Python CLI for mempool.space, enjoy."""
     # Logging
     state["verbose"] = verbose
