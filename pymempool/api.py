@@ -130,6 +130,29 @@ class MempoolAPI:
 
             raise
 
+    def get_price(self):
+        """Returns bitcoin latest price denominated in main currencies."""
+        api_url = 'v1/prices'
+        return self._request(api_url)
+
+    def get_historical_price(self, currency=None, timestamp=None):
+        """Returns bitcoin historical price denominated in main currencies.
+
+        Available query parameters: currency, timestamp.
+        If no parameter is provided, the full price history
+        for all currencies is returned.
+        """
+        api_url = 'v1/historical-price'
+        connector = "?"
+        if currency is not None:
+            currency = str(currency).upper()
+            api_url += f'{connector}currency={currency}'
+            connector = "&"
+        if timestamp is not None:
+            timestamp = int(timestamp)
+            api_url += f'{connector}timestamp={timestamp}'
+        return self._request(api_url)
+
     def get_difficulty_adjustment(self):
         """Returns details about difficulty adjustment."""
         api_url = 'v1/difficulty-adjustment'
@@ -230,9 +253,7 @@ class MempoolAPI:
         hash_value = hash_value.replace(' ', '')
         if start_index is not None:
             start_index = int(start_index)
-            api_url = '{}block/{}/txs/{}'.format(
-                self.get_api_base_url(), hash_value, start_index
-            )
+            api_url = f'block/{hash_value}/txs/{start_index}'
         else:
             api_url = f'block/{hash_value}/txs'
         return self._request(api_url)
@@ -322,8 +343,8 @@ class MempoolAPI:
         """Returns average total fees for blocks in the specified :timePeriod, ordered
         oldest to newest.
 
-        :timePeriod can be any of the following:
-        24h, 3d, 1w, 1m, 3m, 6m, 1y, 2y, 3y.
+        :timePeriod can be any of the following: 24h, 3d, 1w, 1m, 3m,
+        6m, 1y, 2y, 3y.
         """
         api_url = f'v1/mining/blocks/fees/{time_period}'
         return self._request(api_url)
@@ -332,8 +353,8 @@ class MempoolAPI:
         """Returns average block rewards for blocks in the specified :timePeriod,
         ordered oldest to newest.
 
-        :timePeriod can be any of the following:
-        24h, 3d, 1w, 1m, 3m, 6m, 1y, 2y, 3y.
+        :timePeriod can be any of the following: 24h, 3d, 1w, 1m, 3m,
+        6m, 1y, 2y, 3y.
         """
         api_url = f'v1/mining/blocks/rewards/{time_period}'
         return self._request(api_url)
@@ -351,8 +372,8 @@ class MempoolAPI:
         """Returns average size (bytes) and average weight (weight units) for blocks in
         the specified :timePeriod, ordered oldest to newest.
 
-        :timePeriod can be any of the following:
-        24h, 3d, 1w, 1m, 3m, 6m, 1y, 2y, 3y.
+        :timePeriod can be any of the following: 24h, 3d, 1w, 1m, 3m,
+        6m, 1y, 2y, 3y.
         """
         api_url = f'v1/mining/blocks/sizes-weights/{time_period}'
         return self._request(api_url)
