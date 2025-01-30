@@ -18,7 +18,7 @@ class TestWrapper(unittest.TestCase):
     def test_failed_height(self):
         # Arrange
         responses.add(
-            responses.GET, 'https://mempool.space/api/blocks/tip/height', status=404
+            responses.GET, "https://mempool.space/api/blocks/tip/height", status=404
         )
         HTTPError("HTTP Error")
 
@@ -32,7 +32,7 @@ class TestWrapper(unittest.TestCase):
         ping_json = {}
         responses.add(
             responses.GET,
-            'https://mempool.space/api/address/1wiz18xYmhRX6xStj2b9t1rwWX4GKUgpv',
+            "https://mempool.space/api/address/1wiz18xYmhRX6xStj2b9t1rwWX4GKUgpv",
             json=ping_json,
             status=200,
         )
@@ -46,9 +46,9 @@ class TestWrapper(unittest.TestCase):
 
     @responses.activate
     def test_post(self):
-        responses.add(responses.POST, 'https://mempool.space/api/tx', status=400)
+        responses.add(responses.POST, "https://mempool.space/api/tx", status=400)
         ValueError(
-            'sendrawtransaction RPC error:'
+            "sendrawtransaction RPC error:"
             '{"code":-25,"message":"bad-txns-inputs-missingorspent"}'
         )
         with pytest.raises(ValueError):
@@ -70,7 +70,7 @@ class TestWrapper(unittest.TestCase):
         res_json = {}
         responses.add(
             responses.GET,
-            f'{base_api_url}v1/difficulty-adjustment',
+            f"{base_api_url}v1/difficulty-adjustment",
             json=res_json,
             status=200,
         )
@@ -87,7 +87,7 @@ class TestWrapper(unittest.TestCase):
         res_json = {}
         responses.add(
             responses.GET,
-            f'{base_api_url}address/{address}/txs',
+            f"{base_api_url}address/{address}/txs",
             json=res_json,
             status=200,
         )
@@ -106,7 +106,7 @@ class TestWrapper(unittest.TestCase):
         res_json = {}
         responses.add(
             responses.GET,
-            f'{base_api_url}address/{address}/txs/chain',
+            f"{base_api_url}address/{address}/txs/chain",
             json=res_json,
             status=200,
         )
@@ -123,7 +123,7 @@ class TestWrapper(unittest.TestCase):
         res_json2 = {}
         responses.add(
             responses.GET,
-            f'{base_api_url}address/{address}/txs/chain/{last_seen_txid}',
+            f"{base_api_url}address/{address}/txs/chain/{last_seen_txid}",
             json=res_json2,
             status=200,
         )
@@ -142,7 +142,7 @@ class TestWrapper(unittest.TestCase):
         res_json = {}
         responses.add(
             responses.GET,
-            f'{base_api_url}address/{address}/txs/mempool',
+            f"{base_api_url}address/{address}/txs/mempool",
             json=res_json,
             status=200,
         )
@@ -161,7 +161,7 @@ class TestWrapper(unittest.TestCase):
         res_json = {}
         responses.add(
             responses.GET,
-            f'{base_api_url}address/{address}/utxo',
+            f"{base_api_url}address/{address}/utxo",
             json=res_json,
             status=200,
         )
