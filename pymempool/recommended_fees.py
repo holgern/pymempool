@@ -77,25 +77,25 @@ class RecommendedFees:
             )
         else:
             first_median_fee = self.default_fee
-        if len(mempool_blocks_fee) >= 2:
+        if len(mempool_blocks_fee) > 2:
             second_median_fee = self.optimize_median_fee(
                 mempool_blocks_fee[1],
                 mempool_blocks_fee[2],
                 previous_fee=first_median_fee,
             )
-        elif len(mempool_blocks_fee) >= 1:
+        elif len(mempool_blocks_fee) > 1:
             second_median_fee = self.optimize_median_fee(
                 mempool_blocks_fee[1], previous_fee=first_median_fee
             )
         else:
             second_median_fee = self.default_fee
-        if len(mempool_blocks_fee) >= 3:
+        if len(mempool_blocks_fee) > 3:
             third_median_fee = self.optimize_median_fee(
                 mempool_blocks_fee[2],
                 mempool_blocks_fee[3],
                 previous_fee=second_median_fee,
             )
-        elif len(mempool_blocks_fee) >= 1:
+        elif len(mempool_blocks_fee) > 2:
             third_median_fee = self.optimize_median_fee(
                 mempool_blocks_fee[2], previous_fee=second_median_fee
             )
