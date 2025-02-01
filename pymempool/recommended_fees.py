@@ -54,6 +54,7 @@ class RecommendedFees:
 
         vsize = 0
         count = 0
+        minimum_fee = 0
         for block in self.mempool_blocks_fee:
             vsize += block["blockVSize"]
             count += block["nTx"]
@@ -70,10 +71,12 @@ class RecommendedFees:
 
         if len(mempool_blocks_fee) == 1:
             first_median_fee = self.optimize_median_fee(mempool_blocks_fee[0])
-        else:
+        elif len(mempool_blocks_fee) > 1:
             first_median_fee = self.optimize_median_fee(
                 mempool_blocks_fee[0], mempool_blocks_fee[1]
             )
+        else:
+            first_median_fee = self.default_fee
         if len(mempool_blocks_fee) >= 2:
             second_median_fee = self.optimize_median_fee(
                 mempool_blocks_fee[1],
@@ -116,11 +119,11 @@ class RecommendedFees:
         maxFee = []
         medianFee = []
         for n in range(self.n_fee_blocks):
-            if len(self.mempool_blocks_fee) > n:
+            if self.mempool_blocks_fee and len(self.mempool_blocks_fee) > n:
                 minFee.append(self.mempool_blocks_fee[n]["feeRange"][0])
                 maxFee.append(self.mempool_blocks_fee[n]["feeRange"][-1])
                 medianFee.append(median(self.mempool_blocks_fee[n]["feeRange"]))
-            else:
+            elif self.mempool_blocks_fee:
                 minFee.append(
                     self.mempool_blocks_fee[len(self.mempool_blocks_fee) - 1][
                         "feeRange"
