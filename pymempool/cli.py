@@ -1,4 +1,6 @@
+import asyncio
 import logging
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -7,12 +9,33 @@ from rich.table import Table
 from pymempool.api import MempoolAPI
 from pymempool.difficulty_adjustment import DifficultyAdjustment
 from pymempool.recommended_fees import RecommendedFees
+from pymempool.websocket import MempoolWebSocketClient
 
 log = logging.getLogger(__name__)
 app = typer.Typer()
 console = Console()
 
 state = {}
+
+
+async def display_consumer(queue: asyncio.Queue):
+    """Consume messages from the queue and display in a Rich table."""
+    while True:
+        data = await queue.get()
+        keys = list(data.keys())
+
+        table = Table(title="Mempool WebSocket Event")
+        table.add_column("Key", style="cyan", no_wrap=True)
+        table.add_column("Value", style="magenta")
+
+        for k, v in data.items():
+            display_value = str(v)
+            if isinstance(v, (dict, list)):
+                display_value = f"{str(v)[:80]}..."
+            table.add_row(str(k), display_value)
+
+        console.print(table)
+        queue.task_done()
 
 
 @app.command()
@@ -26,7 +49,11 @@ def difficulty():
         table = Table("key", "value")
         for key, value in ret_diff.items():
             table.add_row(key, str(value))
+        table.add_row("Found Blocks", f"{da.found_blocks}")
+        table.add_row("Blocks behind", f"{da.blocks_behind}")
         table.add_row("Last retarget Height", f"{da.last_retarget}")
+        table.add_row("Estimated Retarget Date", f"{da.estimated_retarged_date}")
+        table.add_row("Estimated Retarget Period", f"{da.estimated_retarged_period}")
         table.add_row("time Avg in Minutes", f"{da.minutes_between_blocks:.2f} min")
         console.print(table)
 
@@ -67,6 +94,11 @@ def fees():
 
 
 @app.command()
+def halving():
+    mp = MempoolAPI(api_base_url=state["api"])
+
+
+@app.command()
 def address(address: str):
     """Returns details about an address."""
     mp = MempoolAPI(api_base_url=state["api"])
@@ -96,6 +128,41 @@ def block(hash: str):
             else:
                 table.add_row(key, str(value))
         console.print(table)
+
+
+@app.command()
+def stream(
+    want: List[str] = typer.Option(
+        ["stats", "mempool-blocks"], help="Data channels to subscribe to."
+    ),
+    address: Optional[str] = typer.Option(None, help="Single address to track."),
+    addresses: List[str] = typer.Option(None, help="Multiple addresses to track."),
+    mempool: bool = typer.Option(False, help="Track full mempool."),
+    txids: bool = typer.Option(False, help="Track mempool txids only."),
+    block_index: Optional[int] = typer.Option(
+        None, help="Track mempool block index (e.g., 0)."
+    ),
+    rbf: Optional[str] = typer.Option(None, help="Track RBF type: 'all' or 'fullRbf'."),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose logging."
+    ),
+):
+    """
+    Connect to Mempool WebSocket API and stream live Bitcoin data.
+    """
+
+    client = MempoolWebSocketClient(
+        want_data=want,
+        track_address=address,
+        track_addresses=addresses,
+        track_mempool=mempool,
+        track_mempool_txids=txids,
+        track_mempool_block_index=block_index,
+        track_rbf=rbf,
+        enable_logging=verbose,
+    )
+
+    client.run(stream_to_queue=True, queue_consumer=display_consumer)
 
 
 @app.callback()

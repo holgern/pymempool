@@ -19,7 +19,8 @@ dependencies = [
     "urllib3",
     "typer",
     "rich",
-    "requests"
+    "requests",
+    "websockets"
 ]
 license = {file = "LICENSE"}
 classifiers=[
