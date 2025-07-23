@@ -11,7 +11,9 @@ class Halving:
     INITIAL_REWARD = 50.0  # Initial day 1 BTC block reward
     HALVING_INTERVAL = 210000  # Block intervals in which BTC halves
 
-    def __init__(self, current_height: int, difficulty_adjustment: dict | None = None):
+    def __init__(
+        self, current_height: int, difficulty_adjustment: dict | None = None
+    ):
         """Initialize the Halving calculator.
 
         Args:

@@ -223,7 +223,9 @@ class RecommendedFees:
         self.half_hour_fee = max(half_hour_fee, hour_fee, self.economy_fee)
         self.hour_fee = max(hour_fee, self.economy_fee)
 
-    def update_mempool_blocks(self, mempool_blocks_fee: list[dict] | None) -> bool:
+    def update_mempool_blocks(
+        self, mempool_blocks_fee: list[dict] | None
+    ) -> bool:
         """
         Update mempool block statistics and recalculate recommended fees.
 

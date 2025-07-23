@@ -734,7 +734,11 @@ class MempoolAPI:
         :channelStatus can be open, active, or closed.
         """
         api_url = "v1/lightning/channels"
-        params = {"pub_key": pubkey, "status": channel_status, "index": index}
+        params: dict[str, Any] = {
+            "pub_key": pubkey,
+            "status": channel_status,
+            "index": index,
+        }
         api_url = self._build_url_with_params(api_url, params)
         return self._request(api_url)
 
