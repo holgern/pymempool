@@ -28,6 +28,42 @@ from pymempool import MempoolAPI
 mp = MempoolAPI()
 ```
 
+### CLI Commands
+
+The package provides a command-line interface with various commands to interact with the mempool.space API.
+
+```bash
+# Display recent Bitcoin blocks as ASCII art with statistics
+pymempool blocks --limit 5
+
+# Display mempool blocks as ASCII art with statistics
+pymempool mempool-blocks
+
+# Get information about the next Bitcoin halving
+pymempool halving
+
+# Get current mempool information
+pymempool mempool
+
+# Get current fee recommendations
+pymempool fees
+
+# Get details about a specific Bitcoin address
+pymempool address <address>
+
+# Get details about a specific block
+pymempool block <block_hash>
+
+# Stream live Bitcoin data from the WebSocket API
+pymempool stream
+```
+
+For more details on any command, use the `--help` option:
+
+```bash
+pymempool blocks --help
+```
+
 ### API Documentation
 
 https://mempool.space/docs/api/rest

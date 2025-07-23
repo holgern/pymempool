@@ -1,29 +1,30 @@
 import unittest
 
 import pytest
-import requests.exceptions
 import responses
-from requests.exceptions import HTTPError
 
 from pymempool import MempoolAPI
+from pymempool.api import MempoolNetworkError, MempoolResponseError
 
 
 class TestWrapper(unittest.TestCase):
     @responses.activate
     def test_connection_error(self):
-        with pytest.raises(requests.exceptions.ConnectionError):
+        with pytest.raises(MempoolNetworkError):
             MempoolAPI(api_base_url="https://mempool.space/api/").get_block_tip_height()
 
     @responses.activate
     def test_failed_height(self):
         # Arrange
         responses.add(
-            responses.GET, "https://mempool.space/api/blocks/tip/height", status=404
+            responses.GET,
+            "https://mempool.space/api/blocks/tip/height",
+            status=404,
+            body="Not Found",
         )
-        HTTPError("HTTP Error")
 
         # Act Assert
-        with pytest.raises(HTTPError):
+        with pytest.raises(MempoolResponseError):
             MempoolAPI(api_base_url="https://mempool.space/api/").get_block_tip_height()
 
     @responses.activate
@@ -46,12 +47,14 @@ class TestWrapper(unittest.TestCase):
 
     @responses.activate
     def test_post(self):
-        responses.add(responses.POST, "https://mempool.space/api/tx", status=400)
-        ValueError(
-            "sendrawtransaction RPC error:"
-            '{"code":-25,"message":"bad-txns-inputs-missingorspent"}'
+        responses.add(
+            responses.POST,
+            "https://mempool.space/api/tx",
+            status=400,
+            body='{"code":-25,"message":"bad-txns-inputs-missingorspent"}',
         )
-        with pytest.raises(ValueError):
+
+        with pytest.raises(MempoolResponseError):
             MempoolAPI(api_base_url="https://mempool.space/api/").post_transaction(
                 "0200000001fd5b5fcd1cb066c27cfc9fda5428b9be850b81ac440ea51f1ddba2f9871"
                 "89ac1010000008a4730440220686a40e9d2dbffeab4ca1ff66341d06a17806767f12a"

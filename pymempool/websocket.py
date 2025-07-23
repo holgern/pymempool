@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import random
-import time
 
 import websockets
 

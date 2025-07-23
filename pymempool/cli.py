@@ -1,13 +1,16 @@
 import asyncio
+import datetime
 import logging
-from typing import List, Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from pymempool.api import MempoolAPI
-from pymempool.difficulty_adjustment import DifficultyAdjustment
+from pymempool.ascii_mempool_blocks import AsciiMempoolBlocks
+from pymempool.block_parser import BlockParser
+from pymempool.halving import Halving
+from pymempool.mempool_block_parser import MempoolBlockParser
 from pymempool.recommended_fees import RecommendedFees
 from pymempool.websocket import MempoolWebSocketClient
 
@@ -17,12 +20,15 @@ console = Console()
 
 state = {}
 
+# Default options for typer
+DEFAULT_WANT = ["stats", "mempool-blocks"]
+DEFAULT_ADDRESSES = None
+
 
 async def display_consumer(queue: asyncio.Queue):
     """Consume messages from the queue and display in a Rich table."""
     while True:
         data = await queue.get()
-        keys = list(data.keys())
 
         table = Table(title="Mempool WebSocket Event")
         table.add_column("Key", style="cyan", no_wrap=True)
@@ -30,7 +36,7 @@ async def display_consumer(queue: asyncio.Queue):
 
         for k, v in data.items():
             display_value = str(v)
-            if isinstance(v, (dict, list)):
+            if isinstance(v, dict | list):
                 display_value = f"{str(v)[:80]}..."
             table.add_row(str(k), display_value)
 
@@ -39,23 +45,207 @@ async def display_consumer(queue: asyncio.Queue):
 
 
 @app.command()
-def difficulty():
-    """Returns details about difficulty adjustment."""
+def mempool_blocks(
+    width: int = typer.Option(24, help="Width of each block"),
+    height: int = typer.Option(9, help="Height of each block"),
+    depth: int = typer.Option(3, help="3D effect depth"),
+    padding: int = typer.Option(2, help="Space between blocks"),
+    limit: int = typer.Option(0, help="Limit number of blocks to display (0 for all)"),
+):
+    """
+    Displays mempool blocks as ASCII art with statistics.
+
+    This command visualizes the current mempool blocks as ASCII 3D blocks.
+    Each block contains information about transaction fees, count, and size.
+    A summary table with aggregated statistics is shown below the visualization.
+
+    Customize the display using the width, height, depth, and padding options
+    to fit your terminal size.
+    """
     mp = MempoolAPI(api_base_url=state["api"])
-    ret_height = mp.get_block_tip_height()
+
+    try:
+        ret = mp.get_mempool_blocks_fee()
+
+        if ret is None or not ret:
+            console.print("No mempool blocks data available.", style="bold red")
+            return
+
+        # Limit the number of blocks if requested
+        if limit > 0 and isinstance(ret, list) and len(ret) > limit:
+            ret = ret[:limit]
+
+        # Create an AsciiMempoolBlocks instance with user-provided dimensions
+        drawer = AsciiMempoolBlocks(
+            block_width=width, block_height=height, block_depth=depth, padding=padding
+        )
+
+        # Generate the ASCII art representation of the mempool blocks
+        ascii_art = drawer.draw_from_api(ret)
+
+        if not ascii_art:
+            console.print("No blocks to display.", style="bold yellow")
+            return
+
+        # Print the ASCII art
+        console.print(ascii_art)
+
+        try:
+            # Print additional statistics
+            blocks_parser = MempoolBlockParser(ret)
+
+            if not blocks_parser.blocks:
+                console.print("No block data to summarize.", style="bold yellow")
+                return
+
+            total_txs = sum(block["nTx"] for block in blocks_parser.blocks)
+            total_size_mb = sum(
+                block["block_size_mb"] for block in blocks_parser.blocks
+            )
+            total_fees_btc = sum(block["total_btc"] for block in blocks_parser.blocks)
+
+            # Calculate fee statistics
+            min_fees = [block["min_fee"] for block in blocks_parser.blocks]
+            max_fees = [block["max_fee"] for block in blocks_parser.blocks]
+
+            # Create a table for the summary
+            table = Table("Statistic", "Value")
+            table.add_row("Number of Blocks", str(len(blocks_parser.blocks)))
+            table.add_row("Total Transactions", str(total_txs))
+            table.add_row("Total Size", f"{total_size_mb:.2f} MB")
+            table.add_row("Total Fees", f"{total_fees_btc:.8f} BTC")
+            table.add_row(
+                "Fee Range", f"{min(min_fees):.2f} - {max(max_fees):.2f} sat/vB"
+            )
+
+            console.print("\nMempool Summary:", style="bold")
+            console.print(table)
+
+        except (KeyError, ValueError, TypeError) as e:
+            console.print(f"Error processing block data: {str(e)}", style="bold red")
+
+    except Exception as e:
+        console.print(f"Error retrieving mempool blocks: {str(e)}", style="bold red")
+
+
+@app.command()
+def blocks(
+    limit: int = typer.Option(10, help="Number of blocks to retrieve"),
+    start_height: int = typer.Option(
+        None, help="Starting block height (default is latest)"
+    ),
+    width: int = typer.Option(24, help="Width of each block"),
+    height: int = typer.Option(9, help="Height of each block"),
+    depth: int = typer.Option(3, help="3D effect depth"),
+    padding: int = typer.Option(2, help="Space between blocks"),
+):
+    """
+    Displays recent Bitcoin blocks as ASCII art with statistics.
+
+    This command visualizes recent blocks from the Bitcoin blockchain as ASCII 3D blocks.
+    Each block contains information about block height, timestamp, transaction count,
+    size, and other important metrics.
+
+    Use the limit parameter to control how many blocks to display and
+    start_height to specify a starting point in the blockchain.
+    """
+    mp = MempoolAPI(api_base_url=state["api"])
+
+    try:
+        # Get blocks data
+        blocks_data = mp.get_blocks(start_height)
+
+        if blocks_data is None or not blocks_data:
+            console.print("No blocks data available.", style="bold red")
+            return
+
+        # Limit the number of blocks if requested
+        if limit > 0 and isinstance(blocks_data, list) and len(blocks_data) > limit:
+            blocks_data = blocks_data[:limit]
+
+        # Parse the blocks using BlockParser
+        parser = BlockParser(blocks_data)
+
+        if not parser.blocks:
+            console.print("No blocks to display.", style="bold yellow")
+            return
+
+        # Create an AsciiMempoolBlocks instance with user-provided dimensions
+        drawer = AsciiMempoolBlocks(
+            block_width=width, block_height=height, block_depth=depth, padding=padding
+        )
+
+        # Generate the ASCII art representation of the blocks
+        ascii_art = drawer.draw_from_parser(parser)
+
+        if not ascii_art:
+            console.print("No blocks to display.", style="bold yellow")
+            return
+
+        # Print the ASCII art
+        console.print(ascii_art)
+
+        # Show summary statistics
+        total_txs = sum(block["tx_count"] for block in parser.blocks)
+        avg_size = sum(block["size_mb"] for block in parser.blocks) / len(parser.blocks)
+        avg_tx_count = total_txs / len(parser.blocks)
+
+        summary = Table(title="Summary Statistics")
+        summary.add_column("Statistic", style="cyan")
+        summary.add_column("Value", style="green")
+
+        summary.add_row("Number of Blocks", str(len(parser.blocks)))
+        summary.add_row("Total Transactions", str(total_txs))
+        summary.add_row("Average Block Size", f"{avg_size:.2f} MB")
+        summary.add_row("Average Transactions per Block", f"{avg_tx_count:.2f}")
+        summary.add_row(
+            "Block Height Range",
+            f"{parser.blocks[-1]['height']} - {parser.blocks[0]['height']}",
+        )
+
+        console.print(summary)
+
+    except Exception as e:
+        console.print(f"Error retrieving blocks: {str(e)}", style="bold red")
+
+
+@app.command()
+def halving():
+    """Returns details about next Bitcoin halving."""
+
+    mp = MempoolAPI(api_base_url=state["api"])
+    current_height = mp.get_block_tip_height()
+
     ret_diff = mp.get_difficulty_adjustment()
-    da = DifficultyAdjustment(ret_height, ret_diff)
-    if ret_diff is not None:
-        table = Table("key", "value")
-        for key, value in ret_diff.items():
-            table.add_row(key, str(value))
-        table.add_row("Found Blocks", f"{da.found_blocks}")
-        table.add_row("Blocks behind", f"{da.blocks_behind}")
-        table.add_row("Last retarget Height", f"{da.last_retarget}")
-        table.add_row("Estimated Retarget Date", f"{da.estimated_retarged_date}")
-        table.add_row("Estimated Retarget Period", f"{da.estimated_retarged_period}")
-        table.add_row("time Avg in Minutes", f"{da.minutes_between_blocks:.2f} min")
-        console.print(table)
+    # Use our new Halving class
+    halving_info = Halving(current_height, ret_diff)
+
+    # Print results
+    table = Table("key", "value")
+    table.add_row("Current Block Height", str(current_height))
+    table.add_row("Halving Interval", str(halving_info.HALVING_INTERVAL))
+    table.add_row("Current Halving Cycle", str(halving_info.current_halving))
+    table.add_row("Next Halving Height", str(halving_info.next_halving_height))
+    table.add_row("Blocks Remaining", str(halving_info.blocks_remaining))
+    table.add_row("Current Block Reward", f"{halving_info.current_reward:.8f} BTC")
+    table.add_row("Next Block Reward", f"{halving_info.next_reward:.8f} BTC")
+
+    # Add time estimates if available
+    if isinstance(halving_info.estimated_date, datetime.datetime):
+        table.add_row(
+            "Estimated Halving Date", halving_info.estimated_date.strftime("%Y-%m-%d")
+        )
+        table.add_row("Estimated Time Remaining", halving_info.estimated_time_until)
+        table.add_row(
+            "Estimated Days Remaining", f"{halving_info.estimated_days:.1f} days"
+        )
+    else:
+        table.add_row("Estimated Halving Date", str(halving_info.estimated_date))
+        table.add_row(
+            "Estimated Time Remaining", str(halving_info.estimated_time_until)
+        )
+
+    console.print(table)
 
 
 @app.command()
@@ -94,11 +284,6 @@ def fees():
 
 
 @app.command()
-def halving():
-    mp = MempoolAPI(api_base_url=state["api"])
-
-
-@app.command()
 def address(address: str):
     """Returns details about an address."""
     mp = MempoolAPI(api_base_url=state["api"])
@@ -132,25 +317,31 @@ def block(hash: str):
 
 @app.command()
 def stream(
-    want: List[str] = typer.Option(
-        ["stats", "mempool-blocks"], help="Data channels to subscribe to."
-    ),
-    address: Optional[str] = typer.Option(None, help="Single address to track."),
-    addresses: List[str] = typer.Option(None, help="Multiple addresses to track."),
-    mempool: bool = typer.Option(False, help="Track full mempool."),
-    txids: bool = typer.Option(False, help="Track mempool txids only."),
-    block_index: Optional[int] = typer.Option(
-        None, help="Track mempool block index (e.g., 0)."
-    ),
-    rbf: Optional[str] = typer.Option(None, help="Track RBF type: 'all' or 'fullRbf'."),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Enable verbose logging."
-    ),
+    want: list[str] = DEFAULT_WANT,
+    address: str | None = None,
+    addresses: list[str] | None = None,
+    mempool: bool = False,
+    txids: bool = False,
+    block_index: int | None = None,
+    rbf: str | None = None,
+    verbose: bool = False,
 ):
     """
     Connect to Mempool WebSocket API and stream live Bitcoin data.
     """
 
+    client = MempoolWebSocketClient(
+        want_data=want,
+        track_address=address,
+        track_addresses=addresses,
+        track_mempool=mempool,
+        track_mempool_txids=txids,
+        track_mempool_block_index=block_index,
+        track_rbf=rbf,
+        enable_logging=verbose,
+    )
+
+    client.run(stream_to_queue=True, queue_consumer=display_consumer)
     client = MempoolWebSocketClient(
         want_data=want,
         track_address=address,

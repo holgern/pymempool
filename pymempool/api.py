@@ -1,23 +1,46 @@
 import json
 import logging
 import warnings
+from typing import Any
 
 import requests
+import urllib3
 from requests.adapters import HTTPAdapter
-from requests.packages import urllib3
 
 logger = logging.getLogger(__name__)
 
 
+class MempoolAPIError(Exception):
+    """Base exception for Mempool API errors."""
+
+    pass
+
+
+class MempoolNetworkError(MempoolAPIError):
+    """Exception raised for network connectivity issues."""
+
+    pass
+
+
+class MempoolResponseError(MempoolAPIError):
+    """Exception raised for API response errors."""
+
+    pass
+
+
 class MempoolAPI:
-    __API_URL_BASE = [
+    __API_URL_BASE: list[str] = [
         "https://mempool.space/api/",
         "https://mempool.emzy.de/api/",
         "https://mempool.bitcoin-21.org/api/",
     ]
 
     def __init__(
-        self, api_base_url=__API_URL_BASE, retries=3, request_verify=True, proxies=None
+        self,
+        api_base_url: list[str] | str = __API_URL_BASE,
+        retries: int = 3,
+        request_verify: bool = True,
+        proxies: dict[str, str] | None = None,
     ):
         self.set_api_base_url(api_base_url)
         self.proxies = proxies
@@ -28,36 +51,104 @@ class MempoolAPI:
         if not request_verify:
             warnings.filterwarnings("ignore", message="Unverified HTTPS request")
         self.session = requests.Session()
-        retries = urllib3.util.retry.Retry(
+        max_retries = urllib3.Retry(
             total=retries, backoff_factor=0.1, status_forcelist=[502, 503, 504, 429]
         )
-        self.session.mount("https://", HTTPAdapter(max_retries=retries))
+        self.session.mount("https://", HTTPAdapter(max_retries=max_retries))
 
-    def set_api_base_url(self, api_base_url):
+    def set_api_base_url(self, api_base_url: list[str] | str) -> None:
         if isinstance(api_base_url, list):
             self.api_base_url = api_base_url
         else:
             self.api_base_url = api_base_url.split(",")
 
-    def get_api_base_url(self, index=0):
+    def _build_url_with_params(
+        self, base_url: str, params: dict[str, Any] | None = None
+    ) -> str:
+        """Helper method to build URL with query parameters.
+
+        Args:
+            base_url: Base API URL
+            params: Dictionary of query parameters
+
+        Returns:
+            URL string with parameters
+        """
+        if not params:
+            return base_url
+
+        url = base_url
+        connector = "?"
+
+        for key, value in params.items():
+            if value is not None:
+                if isinstance(value, bool):
+                    value = str(value).lower()
+                elif isinstance(value, int):
+                    value = str(value)
+
+                url += f"{connector}{key}={value}"
+                connector = "&"
+
+        return url
+
+    def get_api_base_url(self, index: int = 0) -> str:
         if len(self.api_base_url) > index:
             return self.api_base_url[index]
         else:
             return self.api_base_url[0]
 
-    def _request(self, url):
+    def _request(self, url: str) -> Any:
+        """Make request to the API with failover to alternate APIs.
+
+        Args:
+            url: The API endpoint to request
+
+        Returns:
+            The parsed API response
+
+        Raises:
+            MempoolNetworkError: If all API endpoints fail with network errors
+            MempoolResponseError: If all API endpoints fail with response errors
+        """
         index = 0
-        while True:
+        last_exception = None
+        response_errors = []
+
+        while index < len(self.api_base_url):
             complete_url = f"{self.get_api_base_url(index)}{url}"
             try:
                 return self.__request(complete_url)
+            except MempoolResponseError as e:
+                # Don't retry on response errors, just collect them
+                response_errors.append(e)
+                last_exception = e
+                index += 1
             except Exception as e:
                 logger.info(f"Timeout on {complete_url} - {e}")
+                last_exception = e
                 index += 1
-                if index >= len(self.api_base_url):
-                    raise
 
-    def __request(self, url):
+        # If we collected any response errors, raise the first one
+        if response_errors:
+            raise response_errors[0]
+
+        # Otherwise raise a network error
+        raise MempoolNetworkError(f"All API endpoints failed: {last_exception}")
+
+    def __request(self, url: str) -> Any:
+        """Execute HTTP GET request and process response.
+
+        Args:
+            url: The full URL to request
+
+        Returns:
+            Parsed response content
+
+        Raises:
+            MempoolNetworkError: For network connectivity issues
+            MempoolResponseError: For API response errors
+        """
         logger.info(url)
         try:
             response = self.session.get(
@@ -66,43 +157,85 @@ class MempoolAPI:
                 verify=self.request_verify,
                 proxies=self.proxies,
             )
-        except requests.exceptions.RequestException:
-            raise
+        except requests.exceptions.RequestException as e:
+            raise MempoolNetworkError(f"Network error: {str(e)}") from e
+
         try:
             response.raise_for_status()
-
-        except Exception:
-            # check if json (with error message) is returned
+        except requests.exceptions.HTTPError as e:
+            # Check if JSON error response is available
             try:
                 content = json.loads(response.content.decode("utf-8"))
-                raise ValueError(content)
-            # if no json
+                raise MempoolResponseError(content) from e
             except json.decoder.JSONDecodeError:
-                pass
-            raise
+                # If no JSON in response, raise original error
+                raise MempoolResponseError(f"HTTP error: {response.status_code}") from e
+
+        # Process successful response
         try:
             decoded_content = response.content.decode("utf-8")
             content = json.loads(decoded_content)
             return content
         except UnicodeDecodeError:
+            # Return raw binary content if not UTF-8
             return response.content
         except json.decoder.JSONDecodeError:
+            # Return string content if not JSON
             return response.content.decode("utf-8")
-        raise
 
-    def _send(self, url, data):
+    def _send(self, url: str, data: Any) -> Any:
+        """Make POST request to the API with failover to alternate APIs.
+
+        Args:
+            url: The API endpoint to request
+            data: The data to send
+
+        Returns:
+            The parsed API response
+
+        Raises:
+            MempoolNetworkError: If all API endpoints fail with network errors
+            MempoolResponseError: If all API endpoints fail with response errors
+        """
         index = 0
-        while True:
+        last_exception = None
+        response_errors = []
+
+        while index < len(self.api_base_url):
             complete_url = f"{self.get_api_base_url(index)}{url}"
             try:
                 return self.__send(complete_url, data)
+            except MempoolResponseError as e:
+                # Don't retry on response errors, just collect them
+                response_errors.append(e)
+                last_exception = e
+                index += 1
             except Exception as e:
                 logger.info(f"Timeout on {complete_url} - {e}")
+                last_exception = e
                 index += 1
-                if index >= len(self.api_base_url):
-                    raise
 
-    def __send(self, url, data):
+        # If we collected any response errors, raise the first one
+        if response_errors:
+            raise response_errors[0]
+
+        # Otherwise raise a network error
+        raise MempoolNetworkError(f"All API endpoints failed: {last_exception}")
+
+    def __send(self, url: str, data: Any) -> Any:
+        """Execute HTTP POST request and process response.
+
+        Args:
+            url: The full URL to request
+            data: The data to send
+
+        Returns:
+            Parsed response content
+
+        Raises:
+            MempoolNetworkError: For network connectivity issues
+            MempoolResponseError: For API response errors
+        """
         logger.info(url)
         try:
             req = requests.Request("POST", url, data=data)
@@ -112,23 +245,21 @@ class MempoolAPI:
                 timeout=(self.connect_timeout, self.sending_timeout),
                 verify=self.request_verify,
             )
-        except requests.exceptions.RequestException:
-            raise
+        except requests.exceptions.RequestException as e:
+            raise MempoolNetworkError(f"Network error: {str(e)}") from e
 
         try:
             response.raise_for_status()
             content = response.content.decode("utf-8")
             return content
-        except Exception:
-            # check if json (with error message) is returned
+        except requests.exceptions.HTTPError as e:
+            # Check if JSON error response is available
             try:
                 content = response.content.decode("utf-8")
-                raise ValueError(content)
-            # if no json
+                raise MempoolResponseError(content) from e
             except json.decoder.JSONDecodeError:
-                pass
-
-            raise
+                # If no JSON in response, raise original error
+                raise MempoolResponseError(f"HTTP error: {response.status_code}") from e
 
     def get_price(self):
         """Returns bitcoin latest price denominated in main currencies."""
@@ -143,14 +274,14 @@ class MempoolAPI:
         for all currencies is returned.
         """
         api_url = "v1/historical-price"
-        connector = "?"
+
+        params = {}
         if currency is not None:
-            currency = str(currency).upper()
-            api_url += f"{connector}currency={currency}"
-            connector = "&"
+            params["currency"] = str(currency).upper()
         if timestamp is not None:
-            timestamp = int(timestamp)
-            api_url += f"{connector}timestamp={timestamp}"
+            params["timestamp"] = int(timestamp)
+
+        api_url = self._build_url_with_params(api_url, params)
         return self._request(api_url)
 
     def get_difficulty_adjustment(self):
@@ -198,6 +329,12 @@ class MempoolAPI:
         """Returns details about a block."""
         hash_value = hash_value.replace(" ", "")
         api_url = f"block/{hash_value}"
+        return self._request(api_url)
+
+    def get_block_v1(self, hash_value):
+        """Returns details about a block."""
+        hash_value = hash_value.replace(" ", "")
+        api_url = f"v1/block/{hash_value}"
         return self._request(api_url)
 
     def get_block_header(self, hash_value):
@@ -259,6 +396,16 @@ class MempoolAPI:
         return self._request(api_url)
 
     def get_blocks(self, start_height=None):
+        """Returns the 10 newest blocks starting at the tip or at :start_height if
+        specified."""
+        if start_height is None:
+            api_url = "blocks"
+        else:
+            start_height = int(start_height)
+            api_url = f"blocks/{start_height}"
+        return self._request(api_url)
+
+    def get_blocks_v1(self, start_height=None):
         """Returns the 10 newest blocks starting at the tip or at :start_height if
         specified."""
         if start_height is None:
@@ -550,26 +697,35 @@ class MempoolAPI:
         api_url = f"v1/lightning/channels/{channelid}"
         return self._request(api_url)
 
-    def get_channel_from_txid(self, txids):
-        """Returns info about a Lightning channel with the given :channelId."""
-        api_url = "v1/lightning/channels/txids"
-        if isinstance(txids, "str"):
-            first = True
-            for txid in txids.split(","):
-                if first:
-                    api_url += f"?txId[]={txid}"
-                    first = False
-                else:
-                    api_url += f"&txId[]={txid}"
-        elif isinstance(txids, list):
-            first = True
-            for txid in txids:
-                if first:
-                    api_url += f"?txId[]={txid}"
-                    first = True
-                else:
-                    api_url += f"&txId[]={txid}"
-        return self._request(api_url)
+    def get_channel_from_txid(self, txids: str | list[str]) -> Any:
+        """Returns info about Lightning channels with the given transaction IDs.
+
+        Args:
+            txids: Transaction ID string (comma-separated) or list of transaction IDs
+
+        Returns:
+            Information about the channels
+        """
+        base_url = "v1/lightning/channels/txids"
+
+        # Convert txids to a list if it's a string
+        if isinstance(txids, str):
+            txid_list = txids.split(",")
+        else:
+            txid_list = txids
+
+        # Build query parameters
+        url = base_url
+        connector = "?"
+
+        for i, txid in enumerate(txid_list):
+            if i == 0:
+                url += f"{connector}txId[]={txid}"
+                connector = "&"
+            else:
+                url += f"{connector}txId[]={txid}"
+
+        return self._request(url)
 
     def get_channels_from_node_pubkey(self, pubkey, channel_status, index=None):
         """Returns a list of a node's channels given its :pubKey.
@@ -578,9 +734,8 @@ class MempoolAPI:
         :channelStatus can be open, active, or closed.
         """
         api_url = "v1/lightning/channels"
-        api_url += f"?pub_key={pubkey}&status={channel_status}"
-        if index is not None:
-            api_url += f"&index={index}"
+        params = {"pub_key": pubkey, "status": channel_status, "index": index}
+        api_url = self._build_url_with_params(api_url, params)
         return self._request(api_url)
 
     def get_channel_geodata(self):
