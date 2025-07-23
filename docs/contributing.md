@@ -5,17 +5,20 @@ Contributions are welcome! Here's how you can contribute to the project:
 ## Setting Up the Development Environment
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/holgern/pymempool.git
    cd pymempool
    ```
 
 2. Install the development dependencies:
+
    ```bash
    pip install -r requirements-test.txt
    ```
 
 3. Install the package in development mode:
+
    ```bash
    pip install -e .
    ```

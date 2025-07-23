@@ -3,7 +3,6 @@
 """Make documentation with sphinx."""
 
 import os
-import shutil
 import sys
 from pathlib import Path
 

@@ -10,10 +10,10 @@ extend-select = [
     "I",  # isort
     "UP",  # pyupgrade
 ]
-exclude = ["setup/*"]
+exclude = ["setup/*", "docs/*"]
 
 [format]
-exclude = ["setup/*"]
+exclude = ["setup/*", "docs/*"]
 
 [lint.per-file-ignores]
 "__init__.py" = ["F401", "I001"]  # ignore unused and unsorted imports in __init__.py

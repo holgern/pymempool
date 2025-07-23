@@ -65,15 +65,15 @@ from pymempool.websocket import MempoolWebsocket
 async def main():
     # Initialize the WebSocket client
     client = MempoolWebsocket()
-    
+
     # Define a callback function to handle new blocks
     async def on_block(block):
         print(f"New block received: {block['height']} - {block['id']}")
-    
+
     # Subscribe to new blocks
     await client.connect()
     await client.subscribe("blocks", on_block)
-    
+
     # Keep the connection alive for 10 minutes
     await asyncio.sleep(600)
     await client.disconnect()

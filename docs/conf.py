@@ -23,7 +23,7 @@ try:
 
     release = get_version("pymempool")
     version = ".".join(release.split(".")[:2])
-except:
+except Exception:
     pass
 
 # -- General configuration ---------------------------------------------------

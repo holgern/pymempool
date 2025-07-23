@@ -7,6 +7,7 @@
 - **Run a single test:** `pytest tests/test_api.py::TestClass::test_method`
 - **Test coverage:** `pytest --cov=pymempool`
 - **Lint and format:** `pre-commit run --show-diff-on-failure --color=always --all-files` or `ruff check --fix --exit-non-zero-on-fix --config=.ruff.toml`
+- doc is created by `python docs/make.py`
 
 ## Code Style Guidelines
 

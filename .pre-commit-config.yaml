@@ -8,7 +8,7 @@ exclude: |
   # Maybe reactivate this when all README files include prettier ignore tags?
   ^README\.md$|
   # Repos using Sphinx to generate docs don't need prettying
-  ^docs/_templates/.*\.html$|
+  ^docs/_templates/.*\.html$|^docs/_build/|
   # Don't bother non-technical authors with formatting issues in docs
   readme/.*\.(rst|md)$|
   # Ignore build and dist directories in addons
