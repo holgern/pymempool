@@ -5,7 +5,7 @@ This section provides detailed documentation for the `pymempool` Python API.
 ## MempoolAPI Class
 
 ```{eval-rst}
-.. autoclass:: pymempool.api.MempoolAPI
+.. automodule:: pymempool.api
    :members:
    :undoc-members:
    :show-inheritance:

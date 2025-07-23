@@ -13,13 +13,18 @@ project = "pymempool"
 copyright = "2025, Holger Nahrstaedt"
 author = "Holger Nahrstaedt"
 
+# Set a default version
+release = "0.0.0"
+version = "0.0.0"
+
 # Try to get version from setuptools_scm
 try:
-    from importlib.metadata import version
+    from importlib.metadata import version as get_version
 
-    release = version("pymempool")
+    release = get_version("pymempool")
+    version = ".".join(release.split(".")[:2])
 except:
-    release = "0.0.0"
+    pass
 
 # -- General configuration ---------------------------------------------------
 extensions = [
@@ -27,9 +32,13 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.autosummary",
     "sphinx_rtd_theme",
     "myst_parser",
 ]
+
+# Enable autosummary
+autosummary_generate = True
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
