@@ -3,8 +3,10 @@ import json
 
 class MempoolBlockParser:
     """
-    Parses the mempool-blocks API output and exposes a list of blocks and helper methods.
+    Parses the mempool-blocks API output and exposes a list of blocks and helper
+    methods.
     """
+
     def __init__(self, api_json):
         """
         api_json: str (JSON string) or list (already parsed)

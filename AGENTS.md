@@ -6,7 +6,7 @@
 - **Run all tests:** `pytest`
 - **Run a single test:** `pytest tests/test_api.py::TestClass::test_method`
 - **Test coverage:** `pytest --cov=pymempool`
-- **Lint and format:** `pre-commit run --all-files` or `ruff check . && ruff format .`
+- **Lint and format:** `pre-commit run --show-diff-on-failure --color=always --all-files` or `ruff check --fix --exit-non-zero-on-fix --config=.ruff.toml`
 
 ## Code Style Guidelines
 

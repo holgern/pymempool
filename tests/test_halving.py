@@ -82,7 +82,7 @@ class TestHalving(unittest.TestCase):
 
             # With 10-minute blocks and 105000 blocks remaining
             # Expected days = 105000 * 10 / (60 * 24) = 729.17 days
-            # Test should be close to this value (allowing for small rounding differences)
+            # Test should be close to this value (allowing for small rounding diffs)
             self.assertAlmostEqual(halving_info.estimated_days, 729.17, delta=1)
 
             # Check that the time_until function was called

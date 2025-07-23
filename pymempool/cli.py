@@ -142,7 +142,8 @@ def blocks(
     """
     Displays recent Bitcoin blocks as ASCII art with statistics.
 
-    This command visualizes recent blocks from the Bitcoin blockchain as ASCII 3D blocks.
+    This command visualizes recent blocks from the Bitcoin blockchain as ASCII 3D
+    blocks.
     Each block contains information about block height, timestamp, transaction count,
     size, and other important metrics.
 

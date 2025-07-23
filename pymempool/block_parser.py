@@ -96,9 +96,9 @@ if __name__ == "__main__":
             "tx_count": 1627,
             "size": 1210916,
             "weight": 3993515,
-            "merkle_root": 
+            "merkle_root":
                 "efa344bcd6c0607f93b709515dd6dc5496178112d680338ebea459e3de7b4fbc",
-            "previousblockhash": 
+            "previousblockhash":
                 "00000000000000000008b6f6fb83f8d74512ef1e0af29e642dd20daddd7d318f",
             "mediantime": 1648827418,
             "nonce": 3580664066,

@@ -144,7 +144,7 @@ class AsciiMempoolBlocks:
             row_lines.append((" " * self.padding).join(block[k] for block in blocks))
         return "\n".join(row_lines)
 
-    def draw_from_parser(self, parser):
+    def draw_from_parser(self, parser):  # noqa: C901 - complex but refactoring would be a bigger change
         """
         parser: MempoolBlockParser or BlockParser instance
         Returns: ASCII art string
