@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from .utils import time_until
 
@@ -30,12 +31,12 @@ class DifficultyAdjustment:
             difficulty_adjustment: Difficulty adjustment data from mempool API
         """
         self.lastblocknum: int
-        self.difficulty_adjustment: dict | None
+        self.difficulty_adjustment: Optional[dict]
         self.last_retarget: int
         self.minutes_between_blocks: float
         self.found_blocks: int
         self.blocks_behind: int
-        self.estimated_retarget_date: datetime | None
+        self.estimated_retarget_date: Optional[datetime]
         self.estimated_retarget_period: str
 
         self.update_difficulty_adjustment(lastblocknum, difficulty_adjustment)

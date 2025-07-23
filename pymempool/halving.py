@@ -1,4 +1,5 @@
 import datetime
+from typing import Optional, Union
 
 from .difficulty_adjustment import DifficultyAdjustment
 from .utils import time_until
@@ -12,7 +13,7 @@ class Halving:
     HALVING_INTERVAL = 210000  # Block intervals in which BTC halves
 
     def __init__(
-        self, current_height: int, difficulty_adjustment: dict | None = None
+        self, current_height: int, difficulty_adjustment: Optional[dict] = None
     ):
         """Initialize the Halving calculator.
 
@@ -31,8 +32,8 @@ class Halving:
         self.next_reward = self.current_reward / 2
 
         # Initialize estimated halving time variables
-        self.estimated_date: datetime.datetime | str = "Unknown"
-        self.estimated_days: float | str = "Unknown"
+        self.estimated_date: Union[datetime.datetime, str] = "Unknown"
+        self.estimated_days: Union[float, str] = "Unknown"
         self.estimated_time_until: str = "Unknown"
 
         # Calculate time estimates if difficulty data is available
@@ -58,7 +59,7 @@ class Halving:
             self.estimated_time_until = time_until(self.estimated_date)
 
     def update(
-        self, current_height: int, difficulty_adjustment: dict | None = None
+        self, current_height: int, difficulty_adjustment: Optional[dict] = None
     ) -> None:
         """Update halving calculations with new data.
 

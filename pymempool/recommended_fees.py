@@ -4,6 +4,7 @@ Bitcoin transaction fee recommendations based on mempool and block data.
 """
 
 import math
+from typing import Optional
 
 from .utils import median
 
@@ -30,8 +31,8 @@ class RecommendedFees:
 
     def __init__(
         self,
-        recommended_fees: dict[str, float] | None = None,
-        mempool_blocks_fee: list[dict] | None = None,
+        recommended_fees: Optional[dict] = None,
+        mempool_blocks_fee: Optional[list] = None,
     ):
         """
         Initialize RecommendedFees with optional recommended fee and mempool block data.
@@ -57,9 +58,7 @@ class RecommendedFees:
         self.update_recommended_fees(recommended_fees)
         self.update_mempool_blocks(mempool_blocks_fee)
 
-    def update_recommended_fees(
-        self, recommended_fees: dict[str, float] | None
-    ) -> None:
+    def update_recommended_fees(self, recommended_fees: Optional[dict]) -> None:
         """
         Update the recommended fee values from a provided dictionary.
 
@@ -80,8 +79,8 @@ class RecommendedFees:
     def optimize_median_fee(
         self,
         p_block: dict,
-        next_block: dict | None = None,
-        previous_fee: float | None = None,
+        next_block: Optional[dict] = None,
+        previous_fee: Optional[float] = None,
     ) -> float:
         """
         Calculate an optimized median fee for a mempool block.
@@ -116,7 +115,7 @@ class RecommendedFees:
         return use_fee
 
     def _calculate_mempool_stats(
-        self, mempool_blocks_fee: list[dict]
+        self, mempool_blocks_fee: list
     ) -> tuple[int, int, float]:
         """
         Calculate mempool statistics from block data.
@@ -143,7 +142,7 @@ class RecommendedFees:
         return vsize, count, minimum_fee
 
     def _calculate_median_fees(
-        self, mempool_blocks_fee: list[dict]
+        self, mempool_blocks_fee: list
     ) -> tuple[float, float, float]:
         """
         Calculate optimized median fees for different confirmation targets.
@@ -223,9 +222,7 @@ class RecommendedFees:
         self.half_hour_fee = max(half_hour_fee, hour_fee, self.economy_fee)
         self.hour_fee = max(hour_fee, self.economy_fee)
 
-    def update_mempool_blocks(
-        self, mempool_blocks_fee: list[dict] | None
-    ) -> bool:
+    def update_mempool_blocks(self, mempool_blocks_fee: Optional[list]) -> bool:
         """
         Update mempool block statistics and recalculate recommended fees.
 

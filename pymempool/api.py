@@ -1,7 +1,7 @@
 import json
 import logging
 import warnings
-from typing import Any
+from typing import Any, Optional, Union
 
 import requests
 import urllib3
@@ -29,7 +29,7 @@ class MempoolResponseError(MempoolAPIError):
 
 
 class MempoolAPI:
-    __API_URL_BASE: list[str] = [
+    __API_URL_BASE: list = [
         "https://mempool.space/api/",
         "https://mempool.emzy.de/api/",
         "https://mempool.bitcoin-21.org/api/",
@@ -37,10 +37,10 @@ class MempoolAPI:
 
     def __init__(
         self,
-        api_base_url: list[str] | str = __API_URL_BASE,
+        api_base_url: Union[list, str] = __API_URL_BASE,
         retries: int = 3,
         request_verify: bool = True,
-        proxies: dict[str, str] | None = None,
+        proxies: Optional[dict] = None,
     ):
         self.set_api_base_url(api_base_url)
         self.proxies = proxies
@@ -56,14 +56,14 @@ class MempoolAPI:
         )
         self.session.mount("https://", HTTPAdapter(max_retries=max_retries))
 
-    def set_api_base_url(self, api_base_url: list[str] | str) -> None:
+    def set_api_base_url(self, api_base_url: Union[list, str]) -> None:
         if isinstance(api_base_url, list):
             self.api_base_url = api_base_url
         else:
             self.api_base_url = api_base_url.split(",")
 
     def _build_url_with_params(
-        self, base_url: str, params: dict[str, Any] | None = None
+        self, base_url: str, params: Optional[dict] = None
     ) -> str:
         """Helper method to build URL with query parameters.
 
@@ -697,7 +697,7 @@ class MempoolAPI:
         api_url = f"v1/lightning/channels/{channelid}"
         return self._request(api_url)
 
-    def get_channel_from_txid(self, txids: str | list[str]) -> Any:
+    def get_channel_from_txid(self, txids: Union[str, list]) -> Any:
         """Returns info about Lightning channels with the given transaction IDs.
 
         Args:
@@ -734,7 +734,7 @@ class MempoolAPI:
         :channelStatus can be open, active, or closed.
         """
         api_url = "v1/lightning/channels"
-        params: dict[str, Any] = {
+        params: dict = {
             "pub_key": pubkey,
             "status": channel_status,
             "index": index,
