@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from .utils import time_until
 
@@ -23,7 +23,7 @@ class DifficultyAdjustment:
         estimated_retarget_period (str): Human-readable time until next adjustment
     """
 
-    def __init__(self, lastblocknum: int, difficulty_adjustment: dict):
+    def __init__(self, lastblocknum: int, difficulty_adjustment: dict[Any, Any]):
         """Initialize the DifficultyAdjustment calculator.
 
         Args:
@@ -42,7 +42,7 @@ class DifficultyAdjustment:
         self.update_difficulty_adjustment(lastblocknum, difficulty_adjustment)
 
     def update_difficulty_adjustment(
-        self, lastblocknum: int, difficulty_adjustment: dict
+        self, lastblocknum: int, difficulty_adjustment: dict[Any, Any]
     ) -> bool:
         """
         Update difficulty adjustment calculations with new blockchain data.

@@ -2,12 +2,13 @@
 
 ## Build, Lint, and Test
 
-- **Install dependencies:** `pip install -r requirements.txt -r requirements-test.txt`
+- **Install dependencies:** `uv pip install -r requirements.txt -r requirements-test.txt`
 - **Run all tests:** `pytest`
 - **Run a single test:** `pytest tests/test_api.py::TestClass::test_method`
 - **Test coverage:** `pytest --cov=pymempool`
 - **Lint and format:** `pre-commit run --show-diff-on-failure --color=always --all-files` or `ruff check --fix --exit-non-zero-on-fix --config=.ruff.toml`
 - doc is created by `python docs/make.py`
+- mypy check: `mypy pymempool`
 
 ## Code Style Guidelines
 
@@ -25,6 +26,6 @@
 
 ## Misc
 
-- **Python version:** 3.7+
+- **Python version:** 3.9+
 - **Entry point:** `pymempool.cli:app` (typer CLI)
 - **Docs:** Keep docstrings first in modules/classes/functions.

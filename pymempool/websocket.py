@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+from typing import Any, Callable, Optional
 
 import websockets
 
@@ -18,11 +19,11 @@ class MempoolWebSocketClient:
         track_mempool=False,
         track_mempool_txids=False,
         track_mempool_block_index=None,
-        track_rbf=None,  # Options: "all" or "fullRbf"
+        track_rbf=None,
         enable_logging=True,
     ):
         self.uri = uri
-        self.connection = None
+        self.connection: Optional[Any] = None
         self.max_retries = max_retries
         self.max_backoff = max_backoff
         self.enable_logging = enable_logging
@@ -38,8 +39,8 @@ class MempoolWebSocketClient:
         if self.enable_logging:
             logging.basicConfig(level=logging.INFO)
 
-        self.message_handler = self.default_handler
-        self.queue = None  # Will be created if streaming to queue
+        self.message_handler: Callable = self.default_handler
+        self.queue: Optional[asyncio.Queue] = None
 
     async def connect(self, use_queue=False, consumer=None):
         retry_count = 0
@@ -57,7 +58,7 @@ class MempoolWebSocketClient:
                     await self.receive_data()
             except (
                 websockets.exceptions.ConnectionClosedError,
-                websockets.exceptions.InvalidStatusCode,
+                websockets.exceptions.InvalidStatus,
                 websockets.exceptions.WebSocketException,
                 asyncio.TimeoutError,
                 OSError,
@@ -119,19 +120,21 @@ class MempoolWebSocketClient:
                 logging.info(f"Tracking RBF events: {self.track_rbf}")
 
     async def _send(self, payload):
-        await self.connection.send(json.dumps(payload))
+        if self.connection is not None:
+            await self.connection.send(json.dumps(payload))
 
     async def receive_data(self):
-        async for message in self.connection:
-            try:
-                data = json.loads(message)
-                if self.queue:
-                    await self.queue.put(data)
-                else:
-                    await self.message_handler(data)
-            except json.JSONDecodeError:
-                if self.enable_logging:
-                    logging.warning(f"Non-JSON message received: {message}")
+        if self.connection is not None:
+            async for message in self.connection:
+                try:
+                    data = json.loads(message)
+                    if self.queue:
+                        await self.queue.put(data)
+                    else:
+                        await self.message_handler(data)
+                except json.JSONDecodeError:
+                    if self.enable_logging:
+                        logging.warning(f"Non-JSON message received: {message}")
 
     async def default_handler(self, data):
         if self.enable_logging:

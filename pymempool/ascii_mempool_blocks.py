@@ -1,12 +1,18 @@
-try:
-    from pymempool.block_parser import BlockParser
-except ImportError:
-    BlockParser = None
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
+    from pymempool.block_parser import BlockParser
     from pymempool.mempool_block_parser import MempoolBlockParser
-except ImportError:
-    MempoolBlockParser = None
+else:
+    try:
+        from pymempool.block_parser import BlockParser
+    except ImportError:
+        BlockParser = None
+
+    try:
+        from pymempool.mempool_block_parser import MempoolBlockParser
+    except ImportError:
+        MempoolBlockParser = None
 
 
 class AsciiBlock:
@@ -244,7 +250,7 @@ if __name__ == "__main__":
     print(drawer.draw_from_api(mempool_api_json))
 
     # Example API output from blocks API
-    if BlockParser:
+    if BlockParser is not None:
         blocks_api_json = (
             '[{"id":"0000000000000000000384f28cb3b9cf4377a39cfd6c29ae9466951de38c0529",'
             '"height":730000,"version":536870912,"timestamp":1648829449,"tx_count":1627,'

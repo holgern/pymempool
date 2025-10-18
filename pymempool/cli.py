@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+from typing import Any, Optional
 
 import typer
 from rich.console import Console
@@ -18,7 +19,7 @@ log = logging.getLogger(__name__)
 app = typer.Typer()
 console = Console()
 
-state = {}
+state: dict[str, Any] = {}
 
 # Default options for typer
 DEFAULT_WANT = ["stats", "mempool-blocks"]
@@ -36,7 +37,7 @@ async def display_consumer(queue: asyncio.Queue):
 
         for k, v in data.items():
             display_value = str(v)
-            if isinstance(v, dict | list):
+            if isinstance(v, (dict, list)):
                 display_value = f"{str(v)[:80]}..."
             table.add_row(str(k), display_value)
 
@@ -319,12 +320,12 @@ def block(hash: str):
 @app.command()
 def stream(
     want: list[str] = DEFAULT_WANT,
-    address: str | None = None,
-    addresses: list[str] | None = None,
+    address: Optional[str] = None,
+    addresses: Optional[list[str]] = None,
     mempool: bool = False,
     txids: bool = False,
-    block_index: int | None = None,
-    rbf: str | None = None,
+    block_index: Optional[int] = None,
+    rbf: Optional[str] = None,
     verbose: bool = False,
 ):
     """
@@ -366,7 +367,7 @@ def main(
     """Python CLI for mempool.space, enjoy."""
     # Logging
     state["verbose"] = verbose
-    state["api"] = api
+    state["api"] = str(api)
     log = logging.getLogger(__name__)
     verbosity = ["critical", "error", "warn", "info", "debug"][int(min(verbose, 4))]
     log.setLevel(getattr(logging, verbosity.upper()))

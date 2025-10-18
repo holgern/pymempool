@@ -41,20 +41,20 @@ class RecommendedFees:
             recommended_fees (dict, optional): Dictionary with recommended fee values.
             mempool_blocks_fee (list, optional): List of mempool block fee data dicts.
         """
-        self.mempool_blocks_fee = None
-        self.hour_fee = None
-        self.half_hour_fee = None
-        self.fastest_fee = None
-        self.economy_fee = None
-        self.minimum_fee = DEFAULT_FEE
-        self.default_fee = DEFAULT_FEE
-        self.n_fee_blocks = DEFAULT_FEE_BLOCKS
-        self.mempool_vsize = 0
-        self.mempool_size_mb = 0
-        self.mempool_size_gb = 0
-        self.mempool_tx_count = 0
-        self.mempool_blocks = 0
-        self.max_mempool_mb = MAX_MEMPOOL_MB
+        self.mempool_blocks_fee: Optional[list] = None
+        self.hour_fee: Optional[float] = None
+        self.half_hour_fee: Optional[float] = None
+        self.fastest_fee: Optional[float] = None
+        self.economy_fee: Optional[float] = None
+        self.minimum_fee: float = DEFAULT_FEE
+        self.default_fee: float = DEFAULT_FEE
+        self.n_fee_blocks: int = DEFAULT_FEE_BLOCKS
+        self.mempool_vsize: int = 0
+        self.mempool_size_mb: float = 0
+        self.mempool_size_gb: float = 0
+        self.mempool_tx_count: int = 0
+        self.mempool_blocks: int = 0
+        self.max_mempool_mb: int = MAX_MEMPOOL_MB
         self.update_recommended_fees(recommended_fees)
         self.update_mempool_blocks(mempool_blocks_fee)
 
@@ -128,7 +128,7 @@ class RecommendedFees:
         """
         vsize = 0
         count = 0
-        minimum_fee = 0
+        minimum_fee = 0.0
 
         for block in mempool_blocks_fee:
             vsize += block["blockVSize"]
@@ -137,7 +137,7 @@ class RecommendedFees:
                 minimum_fee = block["feeRange"][0]
 
         # Ensure minimum fee is at least the default fee
-        minimum_fee = max(minimum_fee, self.default_fee)
+        minimum_fee = float(max(minimum_fee, self.default_fee))
 
         return vsize, count, minimum_fee
 
@@ -215,12 +215,13 @@ class RecommendedFees:
         hour_fee = max(minimum_fee, third_median_fee)
 
         # Economy fee is at most twice the minimum fee, but at least the minimum fee
-        self.economy_fee = max(minimum_fee, min(2 * minimum_fee, third_median_fee))
+        economy_fee_calc = max(minimum_fee, min(2 * minimum_fee, third_median_fee))
+        self.economy_fee = economy_fee_calc
 
         # Ensure fees are monotonically decreasing with confirmation time
-        self.fastest_fee = max(fastest_fee, half_hour_fee, hour_fee, self.economy_fee)
-        self.half_hour_fee = max(half_hour_fee, hour_fee, self.economy_fee)
-        self.hour_fee = max(hour_fee, self.economy_fee)
+        self.fastest_fee = max(fastest_fee, half_hour_fee, hour_fee, economy_fee_calc)
+        self.half_hour_fee = max(half_hour_fee, hour_fee, economy_fee_calc)
+        self.hour_fee = max(hour_fee, economy_fee_calc)
 
     def update_mempool_blocks(self, mempool_blocks_fee: Optional[list]) -> bool:
         """
@@ -241,8 +242,8 @@ class RecommendedFees:
         vsize, count, minimum_fee = self._calculate_mempool_stats(mempool_blocks_fee)
         self.minimum_fee = minimum_fee
         self.mempool_vsize = vsize
-        self.mempool_size_mb = vsize / KB_TO_MB * MEMPOOL_SIZE_MULTIPLIER
-        self.mempool_size_gb = vsize / KB_TO_GB * MEMPOOL_SIZE_MULTIPLIER
+        self.mempool_size_mb = float(vsize / KB_TO_MB * MEMPOOL_SIZE_MULTIPLIER)
+        self.mempool_size_gb = float(vsize / KB_TO_GB * MEMPOOL_SIZE_MULTIPLIER)
         self.mempool_tx_count = count
         self.mempool_blocks = math.ceil(vsize / BLOCK_SIZE_DIVISOR)
 

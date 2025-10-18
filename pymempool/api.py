@@ -112,7 +112,7 @@ class MempoolAPI:
             MempoolResponseError: If all API endpoints fail with response errors
         """
         index = 0
-        last_exception = None
+        last_exception: Optional[Union[MempoolResponseError, Exception]] = None
         response_errors = []
 
         while index < len(self.api_base_url):
@@ -198,7 +198,7 @@ class MempoolAPI:
             MempoolResponseError: If all API endpoints fail with response errors
         """
         index = 0
-        last_exception = None
+        last_exception: Optional[Union[MempoolResponseError, Exception]] = None
         response_errors = []
 
         while index < len(self.api_base_url):
@@ -275,7 +275,7 @@ class MempoolAPI:
         """
         api_url = "v1/historical-price"
 
-        params = {}
+        params: dict[str, Union[str, int]] = {}
         if currency is not None:
             params["currency"] = str(currency).upper()
         if timestamp is not None:
