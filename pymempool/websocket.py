@@ -42,6 +42,28 @@ class MempoolWebSocketClient:
         self.message_handler: Callable = self.default_handler
         self.queue: Optional[asyncio.Queue] = None
 
+    def build_subscription_payloads(self) -> list[dict[str, Any]]:
+        """Build websocket subscription payloads from the configured options."""
+
+        payloads: list[dict[str, Any]] = []
+
+        if self.want_data:
+            payloads.append({"action": "want", "data": self.want_data})
+        if self.track_address:
+            payloads.append({"track-address": self.track_address})
+        if self.track_addresses:
+            payloads.append({"track-addresses": self.track_addresses})
+        if self.track_mempool:
+            payloads.append({"track-mempool": True})
+        if self.track_mempool_txids:
+            payloads.append({"track-mempool-txids": True})
+        if self.track_mempool_block_index is not None:
+            payloads.append({"track-mempool-block": self.track_mempool_block_index})
+        if self.track_rbf in ["all", "fullRbf"]:
+            payloads.append({"track-rbf": self.track_rbf})
+
+        return payloads
+
     async def connect(self, use_queue=False, consumer=None):
         retry_count = 0
         self.queue = asyncio.Queue() if use_queue else None
@@ -82,42 +104,10 @@ class MempoolWebSocketClient:
                 break
 
     async def subscribe_all(self):
-        if self.want_data:
-            await self._send({"action": "want", "data": self.want_data})
+        for payload in self.build_subscription_payloads():
+            await self._send(payload)
             if self.enable_logging:
-                logging.info(f"Subscribed to 'want': {self.want_data}")
-
-        if self.track_address:
-            await self._send({"track-address": self.track_address})
-            if self.enable_logging:
-                logging.info(f"Tracking address: {self.track_address}")
-
-        if self.track_addresses:
-            await self._send({"track-addresses": self.track_addresses})
-            if self.enable_logging:
-                logging.info(f"Tracking addresses: {self.track_addresses}")
-
-        if self.track_mempool:
-            await self._send({"track-mempool": True})
-            if self.enable_logging:
-                logging.info("Tracking full mempool")
-
-        if self.track_mempool_txids:
-            await self._send({"track-mempool-txids": True})
-            if self.enable_logging:
-                logging.info("Tracking mempool txids")
-
-        if self.track_mempool_block_index is not None:
-            await self._send({"track-mempool-block": self.track_mempool_block_index})
-            if self.enable_logging:
-                logging.info(
-                    f"Tracking mempool block index: {self.track_mempool_block_index}"
-                )
-
-        if self.track_rbf in ["all", "fullRbf"]:
-            await self._send({"track-rbf": self.track_rbf})
-            if self.enable_logging:
-                logging.info(f"Tracking RBF events: {self.track_rbf}")
+                logging.info("Sent subscription payload: %s", payload)
 
     async def _send(self, payload):
         if self.connection is not None:

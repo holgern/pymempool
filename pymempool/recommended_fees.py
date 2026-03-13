@@ -4,7 +4,8 @@ Bitcoin transaction fee recommendations based on mempool and block data.
 """
 
 import math
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from .utils import median
 
@@ -18,6 +19,33 @@ BLOCK_SIZE_DIVISOR = 1e6
 KB_TO_MB = 1024 * 1024
 KB_TO_GB = 1024 * 1024 * 1024
 DEFAULT_FEE_BLOCKS = 5
+
+FEE_FIELD_ALIASES = {
+    "fastest_fee": ("fastest_fee", "fastestFee"),
+    "half_hour_fee": ("half_hour_fee", "halfHourFee"),
+    "hour_fee": ("hour_fee", "hourFee"),
+    "economy_fee": ("economy_fee", "economyFee"),
+    "minimum_fee": ("minimum_fee", "minimumFee"),
+}
+
+
+def normalize_recommended_fee_payload(
+    recommended_fees: Optional[Mapping[str, Any]],
+) -> dict[str, float]:
+    """Normalize recommended fee payloads to snake_case keys."""
+
+    if not recommended_fees:
+        return {}
+
+    normalized: dict[str, float] = {}
+    for normalized_key, aliases in FEE_FIELD_ALIASES.items():
+        for alias in aliases:
+            value = recommended_fees.get(alias)
+            if value is not None:
+                normalized[normalized_key] = float(value)
+                break
+
+    return normalized
 
 
 class RecommendedFees:
@@ -70,11 +98,23 @@ class RecommendedFees:
         if not recommended_fees:
             return
 
-        self.hour_fee = recommended_fees.get("hourFee", self.hour_fee)
-        self.half_hour_fee = recommended_fees.get("halfHourFee", self.half_hour_fee)
-        self.fastest_fee = recommended_fees.get("fastestFee", self.fastest_fee)
-        self.economy_fee = recommended_fees.get("economy_fee", self.economy_fee)
-        self.minimum_fee = recommended_fees.get("minimumFee", self.minimum_fee)
+        normalized = normalize_recommended_fee_payload(recommended_fees)
+        self.hour_fee = normalized.get("hour_fee", self.hour_fee)
+        self.half_hour_fee = normalized.get("half_hour_fee", self.half_hour_fee)
+        self.fastest_fee = normalized.get("fastest_fee", self.fastest_fee)
+        self.economy_fee = normalized.get("economy_fee", self.economy_fee)
+        self.minimum_fee = normalized.get("minimum_fee", self.minimum_fee)
+
+    def as_dict(self) -> dict[str, Optional[float]]:
+        """Return the normalized fee snapshot as a snake_case dictionary."""
+
+        return {
+            "fastest_fee": self.fastest_fee,
+            "half_hour_fee": self.half_hour_fee,
+            "hour_fee": self.hour_fee,
+            "economy_fee": self.economy_fee,
+            "minimum_fee": self.minimum_fee,
+        }
 
     def optimize_median_fee(
         self,

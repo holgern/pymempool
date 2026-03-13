@@ -1,0 +1,10 @@
+[codecrate]
+output = "context_pymempool.md"
+keep_docstrings = true
+dedupe = true
+metadata = false
+respect_gitignore = true
+exclude = ["examples", "*/.venv/*"]
+include = ["**/*.py", "**/*.toml", "**/*.rst", "**/*.md"]
+split_max_chars = 0
+layout = "full"

@@ -1,6 +1,9 @@
 import unittest
 
-from pymempool.recommended_fees import RecommendedFees
+from pymempool.recommended_fees import (
+    RecommendedFees,
+    normalize_recommended_fee_payload,
+)
 
 
 def make_recommended_fees_sample():
@@ -9,8 +12,20 @@ def make_recommended_fees_sample():
         "fastestFee": 10.0,
         "halfHourFee": 5.0,
         "hourFee": 3.0,
-        "economy_fee": 2.0,
+        "economyFee": 2.0,
         "minimumFee": 1.0,
+    }
+
+
+def make_snake_case_recommended_fees_sample():
+    """Create a snake_case recommended fee sample for compatibility testing."""
+
+    return {
+        "fastest_fee": 10.0,
+        "half_hour_fee": 5.0,
+        "hour_fee": 3.0,
+        "economy_fee": 2.0,
+        "minimum_fee": 1.0,
     }
 
 
@@ -74,8 +89,34 @@ class TestRecommendedFees(unittest.TestCase):
         self.assertEqual(fees.fastest_fee, recommended_fees["fastestFee"])
         self.assertEqual(fees.half_hour_fee, recommended_fees["halfHourFee"])
         self.assertEqual(fees.hour_fee, recommended_fees["hourFee"])
-        self.assertEqual(fees.economy_fee, recommended_fees["economy_fee"])
+        self.assertEqual(fees.economy_fee, recommended_fees["economyFee"])
         self.assertEqual(fees.minimum_fee, recommended_fees["minimumFee"])
+
+    def test_normalize_recommended_fees_payload_accepts_camel_and_snake_case(self):
+        """Test fee payload normalization for mixed naming conventions."""
+
+        self.assertEqual(
+            normalize_recommended_fee_payload(make_recommended_fees_sample()),
+            {
+                "fastest_fee": 10.0,
+                "half_hour_fee": 5.0,
+                "hour_fee": 3.0,
+                "economy_fee": 2.0,
+                "minimum_fee": 1.0,
+            },
+        )
+        self.assertEqual(
+            normalize_recommended_fee_payload(
+                make_snake_case_recommended_fees_sample()
+            ),
+            {
+                "fastest_fee": 10.0,
+                "half_hour_fee": 5.0,
+                "hour_fee": 3.0,
+                "economy_fee": 2.0,
+                "minimum_fee": 1.0,
+            },
+        )
 
     def test_initialization_with_mempool_blocks(self):
         """Test initialization with mempool blocks fee data."""
@@ -120,7 +161,7 @@ class TestRecommendedFees(unittest.TestCase):
         self.assertEqual(self.fees.fastest_fee, recommended_fees["fastestFee"])
         self.assertEqual(self.fees.half_hour_fee, recommended_fees["halfHourFee"])
         self.assertEqual(self.fees.hour_fee, recommended_fees["hourFee"])
-        self.assertEqual(self.fees.economy_fee, recommended_fees["economy_fee"])
+        self.assertEqual(self.fees.economy_fee, recommended_fees["economyFee"])
         self.assertEqual(self.fees.minimum_fee, recommended_fees["minimumFee"])
 
     def test_update_recommended_fees_partial_data(self):
@@ -130,10 +171,7 @@ class TestRecommendedFees(unittest.TestCase):
         self.fees.update_recommended_fees(initial_fees)
 
         # Only update some fields
-        partial_update = {
-            "fastestFee": 20.0,
-            "minimumFee": 2.0,
-        }
+        partial_update = {"fastest_fee": 20.0, "minimum_fee": 2.0}
 
         # Act
         self.fees.update_recommended_fees(partial_update)
@@ -142,8 +180,24 @@ class TestRecommendedFees(unittest.TestCase):
         self.assertEqual(self.fees.fastest_fee, 20.0)
         self.assertEqual(self.fees.half_hour_fee, initial_fees["halfHourFee"])
         self.assertEqual(self.fees.hour_fee, initial_fees["hourFee"])
-        self.assertEqual(self.fees.economy_fee, initial_fees["economy_fee"])
+        self.assertEqual(self.fees.economy_fee, initial_fees["economyFee"])
         self.assertEqual(self.fees.minimum_fee, 2.0)
+
+    def test_as_dict_returns_normalized_fee_snapshot(self):
+        """Test conversion of fee data to a normalized dictionary."""
+
+        self.fees.update_recommended_fees(make_recommended_fees_sample())
+
+        self.assertEqual(
+            self.fees.as_dict(),
+            {
+                "fastest_fee": 10.0,
+                "half_hour_fee": 5.0,
+                "hour_fee": 3.0,
+                "economy_fee": 2.0,
+                "minimum_fee": 1.0,
+            },
+        )
 
     def test_optimize_median_fee_small_block(self):
         """Test optimize_median_fee with a small block."""
@@ -284,6 +338,10 @@ class TestRecommendedFees(unittest.TestCase):
         # Assert - verify that each fee is set correctly
         # Minimum fee should be minimum of first block fee range
         self.assertEqual(self.fees.minimum_fee, 1.0)
+        assert self.fees.fastest_fee is not None
+        assert self.fees.half_hour_fee is not None
+        assert self.fees.hour_fee is not None
+        assert self.fees.economy_fee is not None
 
         # Fees should follow the principle of monotonically decreasing
         # with confirmation time

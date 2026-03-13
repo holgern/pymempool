@@ -47,6 +47,8 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
+autodoc_mock_imports = ["requests"]
+
 # -- Extension configuration -------------------------------------------------
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),

@@ -172,3 +172,54 @@ class TestWrapper(unittest.TestCase):
         # Act
         response = MempoolAPI(api_base_url=base_api_url).get_address_utxo(address)
         self.assertEqual(response, res_json)
+
+    @responses.activate
+    def test_get_recommended_fees_precise(self):
+        base_api_url = "https://mempool.space/api/"
+        res_json = {
+            "fastestFee": 12.345,
+            "halfHourFee": 8.75,
+            "hourFee": 5.5,
+            "economyFee": 2.25,
+            "minimumFee": 1.001,
+        }
+        responses.add(
+            responses.GET,
+            f"{base_api_url}v1/fees/precise",
+            json=res_json,
+            status=200,
+        )
+
+        response = MempoolAPI(api_base_url=base_api_url).get_recommended_fees_precise()
+        self.assertEqual(response, res_json)
+
+    @responses.activate
+    def test_get_mempool_recent(self):
+        base_api_url = "https://mempool.space/api/"
+        res_json = [{"txid": "abc", "fee": 250, "vsize": 140, "value": 1000}]
+        responses.add(
+            responses.GET,
+            f"{base_api_url}mempool/recent",
+            json=res_json,
+            status=200,
+        )
+
+        response = MempoolAPI(api_base_url=base_api_url).get_mempool_recent()
+        self.assertEqual(response, res_json)
+
+    @responses.activate
+    def test_get_block_audit_summary(self):
+        base_api_url = "https://mempool.space/api/"
+        block_hash = "00" * 32
+        res_json = {"id": block_hash, "matchRate": 99.8}
+        responses.add(
+            responses.GET,
+            f"{base_api_url}v1/block/{block_hash}/audit-summary",
+            json=res_json,
+            status=200,
+        )
+
+        response = MempoolAPI(api_base_url=base_api_url).get_block_audit_summary(
+            block_hash
+        )
+        self.assertEqual(response, res_json)

@@ -70,3 +70,7 @@ warn_unreachable = false
 strict_equality = true
 exclude = [
 ]
+
+[[tool.mypy.overrides]]
+module = ["requests", "requests.*"]
+ignore_missing_imports = true

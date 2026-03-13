@@ -1,164 +1,119 @@
-# mempool.space API wrapper
+# pymempool
 
 [![codecov](https://codecov.io/gh/holgern/pymempool/graph/badge.svg?token=VyIU0ZxwpD)](https://codecov.io/gh/holgern/pymempool)
 [![PyPi Version](https://img.shields.io/pypi/v/pymempool.svg)](https://pypi.python.org/pypi/pymempool/)
 
-Python3 wrapper around the [mempool.space](https://www.mempool.space) API (V1)
+Python wrapper and terminal dashboard for the [mempool.space](https://mempool.space) API.
 
-### Installation
+## Installation
 
-PyPI
+PyPI:
 
 ```bash
 pip install pymempool
 ```
 
-or from source
+From source:
 
 ```bash
 git clone https://github.com/holgern/pymempool.git
 cd pymempool
-python3 setup.py install
+python -m pip install -e .
 ```
 
-### Usage
+## Quick Start
 
 ```python
-from pymempool import MempoolAPI
+from pymempool import MempoolAPI, RecommendedFees
+
 mp = MempoolAPI()
+
+fees = RecommendedFees(mp.get_recommended_fees_precise())
+print(fees.as_dict())
+
+mempool = mp.get_mempool()
+print(mempool["count"], mempool["vsize"])
+
+projected_blocks = mp.get_mempool_blocks_fee()
+print(projected_blocks[0]["medianFee"])
 ```
 
-### CLI Commands
-
-The package provides a command-line interface with various commands to interact with the mempool.space API.
+## Best First Commands
 
 ```bash
-# Display recent Bitcoin blocks as ASCII art with statistics
-pymempool blocks --limit 5
-
-# Display mempool blocks as ASCII art with statistics
-pymempool mempool-blocks
-
-# Get information about the next Bitcoin halving
-pymempool halving
-
-# Get current mempool information
-pymempool mempool
-
-# Get current fee recommendations
-pymempool fees
-
-# Get details about a specific Bitcoin address
-pymempool address <address>
-
-# Get details about a specific block
-pymempool block <block_hash>
-
-# Stream live Bitcoin data from the WebSocket API
-pymempool stream
+pymempool overview
+pymempool pressure
+pymempool ladder
+pymempool watch
 ```
 
-For more details on any command, use the `--help` option:
+## CLI Commands
 
 ```bash
-pymempool blocks --help
+# One-screen mempool dashboard
+pymempool overview --precise-fees --blocks 6
+
+# Fee pressure across human-readable bands
+pymempool pressure
+
+# Decision-first projected block ladder
+pymempool ladder --limit 8
+
+# Legacy ASCII mempool blocks view
+pymempool mempool-blocks --limit 4
+
+# Live mempool dashboard
+pymempool watch --rbf fullRbf
+
+# Stream raw websocket events
+pymempool stream --want stats --want mempool-blocks
 ```
 
-### API Documentation
+For command details:
 
-https://mempool.space/docs/api/rest
-
-## Test Suite
-
-### Set up the test environment
-
-Install the test-runner dependencies:
-
-```
-pip3 install -r requirements-test.txt
+```bash
+pymempool --help
+pymempool overview --help
 ```
 
-Then make the `pymempool` python module visible/importable to the tests by installing the local dev dir as an editable module:
+## API Highlights
 
+```python
+from pymempool import MempoolAPI, MempoolWebSocketClient
+
+mp = MempoolAPI()
+
+rounded = mp.get_recommended_fees()
+precise = mp.get_recommended_fees_precise()
+recent = mp.get_mempool_recent()
+audit = mp.get_block_audit_summary("<block_hash>")
+
+client = MempoolWebSocketClient(want_data=["stats", "mempool-blocks"])
+print(client.build_subscription_payloads())
 ```
-# from the repo root
-pip3 install -e .
+
+## Development
+
+Install dev and test dependencies:
+
+```bash
+uv pip install -r requirements.txt -r requirements-test.txt
 ```
 
-### Running the test suite
+Common checks:
 
-Run the whole test suite:
-
-```
-# from the repo root
+```bash
 pytest
+pre-commit run --show-diff-on-failure --color=always --all-files
+mypy pymempool
+python docs/make.py
 ```
 
-Run a specific test file:
+## Documentation
 
-```
-pytest test/test_this_file.py
-```
-
-Run a specific test:
-
-```
-pytest test/test_this_file.py::test_this_specific_test
-```
-
-### Running tests with tox
-
-Install tox
-
-```
-pip install tox
-```
-
-Run tests
-
-```
-tox
-```
+- REST API reference: https://mempool.space/docs/api/rest
+- Project docs: `docs/`
 
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
-
-## Pre-commit-config
-
-### Installation
-
-```
-$ pip install pre-commit
-```
-
-### Using homebrew:
-
-```
-$ brew install pre-commit
-```
-
-```
-$ pre-commit --version
-pre-commit 2.10.0
-```
-
-### Install the git hook scripts
-
-```
-$ pre-commit install
-```
-
-### Run against all the files
-
-```
-pre-commit run --all-files
-pre-commit run --show-diff-on-failure --color=always --all-files
-```
-
-### Update package rev in pre-commit yaml
-
-```bash
-pre-commit autoupdate
-pre-commit run --show-diff-on-failure --color=always --all-files
-```

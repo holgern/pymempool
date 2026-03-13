@@ -1,83 +1,82 @@
 # Examples
 
-## Getting Block Information
+## Fetching Recent Blocks
 
 ```python
 from pymempool import MempoolAPI
 
-# Initialize the API
 mp = MempoolAPI()
 
-# Get the latest block
-latest_block = mp.get_blocks(limit=1)[0]
+latest_block = mp.get_blocks()[0]
 print(f"Latest block height: {latest_block['height']}")
 print(f"Latest block hash: {latest_block['id']}")
 
-# Get detailed information about the block
-block_details = mp.get_block(latest_block['id'])
+block_details = mp.get_block(latest_block["id"])
 print(f"Block size: {block_details['size']} bytes")
 print(f"Transaction count: {block_details['tx_count']}")
 ```
 
-## Working with Fees
+## Working With Fees
 
 ```python
-from pymempool import MempoolAPI
+from pymempool import MempoolAPI, RecommendedFees
 
-# Initialize the API
 mp = MempoolAPI()
 
-# Get current fee recommendations
-fees = mp.get_recommended_fees()
-print(f"Fast transaction fee (next block): {fees['fastestFee']} sat/vB")
-print(f"Half hour fee: {fees['halfHourFee']} sat/vB")
-print(f"Hour fee: {fees['hourFee']} sat/vB")
-print(f"Economy fee: {fees['economyFee']} sat/vB")
-print(f"Minimum fee: {fees['minimumFee']} sat/vB")
+rounded = RecommendedFees(mp.get_recommended_fees())
+precise = RecommendedFees(mp.get_recommended_fees_precise())
+
+print(f"Rounded fastest fee: {rounded.fastest_fee} sat/vB")
+print(f"Precise hour fee: {precise.hour_fee} sat/vB")
+print(precise.as_dict())
 ```
 
-## Monitoring the Mempool
+## Monitoring The Mempool
 
 ```python
 from pymempool import MempoolAPI
 
-# Initialize the API
 mp = MempoolAPI()
 
-# Get current mempool information
 mempool_info = mp.get_mempool()
 print(f"Total transactions in mempool: {mempool_info['count']}")
 print(f"Total mempool size: {mempool_info['vsize']} vBytes")
-print(f"Total fees: {mempool_info['total_fee']} BTC")
+print(f"Total fees: {mempool_info['total_fee']} sats")
 
-# Get mempool transactions by fee rate
-mempool_blocks = mp.get_mempool_blocks()
-for i, block in enumerate(mempool_blocks):
-    print(f"Potential block {i+1}: {len(block['feeRange'])} fee levels, {block['blockVSize']} vBytes")
+projected_blocks = mp.get_mempool_blocks_fee()
+for index, block in enumerate(projected_blocks[:3], start=1):
+    print(
+        f"Projected block {index}: min={block['feeRange'][0]} median={block['medianFee']} "
+        f"max={block['feeRange'][-1]} sat/vB"
+    )
+
+recent_entries = mp.get_mempool_recent()
+for tx in recent_entries[:3]:
+    print(tx["txid"], tx.get("fee"), tx.get("vsize"))
 ```
 
-## Using the WebSocket API
+## Inspecting A Block Audit Summary
 
 ```python
-import asyncio
-from pymempool.websocket import MempoolWebsocket
+from pymempool import MempoolAPI
 
-async def main():
-    # Initialize the WebSocket client
-    client = MempoolWebsocket()
+mp = MempoolAPI()
+block_hash = mp.get_blocks()[0]["id"]
+audit = mp.get_block_audit_summary(block_hash)
 
-    # Define a callback function to handle new blocks
-    async def on_block(block):
-        print(f"New block received: {block['height']} - {block['id']}")
+print(audit["id"], audit["matchRate"])
+```
 
-    # Subscribe to new blocks
-    await client.connect()
-    await client.subscribe("blocks", on_block)
+## Preparing WebSocket Subscriptions
 
-    # Keep the connection alive for 10 minutes
-    await asyncio.sleep(600)
-    await client.disconnect()
+```python
+from pymempool import MempoolWebSocketClient
 
-# Run the async function
-asyncio.run(main())
+client = MempoolWebSocketClient(
+    want_data=["stats", "mempool-blocks"],
+    track_rbf="fullRbf",
+    enable_logging=False,
+)
+
+print(client.build_subscription_payloads())
 ```

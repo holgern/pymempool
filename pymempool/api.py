@@ -5,7 +5,7 @@ from typing import Any, Optional, Union
 
 import requests
 import urllib3
-from requests.adapters import HTTPAdapter
+from requests.adapters import HTTPAdapter  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -487,21 +487,21 @@ class MempoolAPI:
         return self._request(api_url)
 
     def get_block_fees(self, time_period):
-        """Returns average total fees for blocks in the specified :timePeriod, ordered
-        oldest to newest.
+        """Returns average total fees for blocks over a trailing time period.
 
-        :timePeriod can be any of the following: 24h, 3d, 1w, 1m, 3m,
-        6m, 1y, 2y, 3y.
+        The returned series is ordered from oldest to newest.
+        Valid values include ``24h``, ``3d``, ``1w``, ``1m``, ``3m``, ``6m``,
+        ``1y``, ``2y``, and ``3y``.
         """
         api_url = f"v1/mining/blocks/fees/{time_period}"
         return self._request(api_url)
 
     def get_block_rewards(self, time_period):
-        """Returns average block rewards for blocks in the specified :timePeriod,
-        ordered oldest to newest.
+        """Returns average block rewards for blocks over a trailing time period.
 
-        :timePeriod can be any of the following: 24h, 3d, 1w, 1m, 3m,
-        6m, 1y, 2y, 3y.
+        The returned series is ordered from oldest to newest.
+        Valid values include ``24h``, ``3d``, ``1w``, ``1m``, ``3m``, ``6m``,
+        ``1y``, ``2y``, and ``3y``.
         """
         api_url = f"v1/mining/blocks/rewards/{time_period}"
         return self._request(api_url)
@@ -516,11 +516,11 @@ class MempoolAPI:
         return self._request(api_url)
 
     def get_block_sizes_and_weights(self, time_period):
-        """Returns average size (bytes) and average weight (weight units) for blocks in
-        the specified :timePeriod, ordered oldest to newest.
+        """Returns average size and weight for blocks over a trailing time period.
 
-        :timePeriod can be any of the following: 24h, 3d, 1w, 1m, 3m,
-        6m, 1y, 2y, 3y.
+        The returned series is ordered from oldest to newest.
+        Valid values include ``24h``, ``3d``, ``1w``, ``1m``, ``3m``, ``6m``,
+        ``1y``, ``2y``, and ``3y``.
         """
         api_url = f"v1/mining/blocks/sizes-weights/{time_period}"
         return self._request(api_url)
@@ -533,6 +533,11 @@ class MempoolAPI:
     def get_recommended_fees(self):
         """Returns our currently suggested fees for new transactions."""
         api_url = "v1/fees/recommended"
+        return self._request(api_url)
+
+    def get_recommended_fees_precise(self):
+        """Returns precise fee suggestions for new transactions."""
+        api_url = "v1/fees/precise"
         return self._request(api_url)
 
     def get_mempool(self):
@@ -548,6 +553,12 @@ class MempoolAPI:
     def get_mempool_recent(self):
         """Get a list of the last 10 transactions to enter the mempool."""
         api_url = "mempool/recent"
+        return self._request(api_url)
+
+    def get_block_audit_summary(self, hash_value):
+        """Returns the audit summary for the specified block."""
+        hash_value = hash_value.replace(" ", "")
+        api_url = f"v1/block/{hash_value}/audit-summary"
         return self._request(api_url)
 
     def get_children_pay_for_parents(self, txid):
