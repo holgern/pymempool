@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, Sequence
-from typing import Any, Optional
+from typing import Any
 
 from pymempool.metrics import summarize_projected_blocks
 from pymempool.recommended_fees import normalize_recommended_fee_payload
@@ -74,15 +74,16 @@ def reduce_watch_message(
         state["rbf_count"] = len(replacements)
         state["last_rbf_type"] = _detect_rbf_type(replacements)
         if replacements:
+            rbf_type = state["last_rbf_type"] or "unknown"
             _push_event(
                 state,
-                f"RBF updates: {len(replacements)} ({state['last_rbf_type'] or 'unknown'})",
+                f"RBF updates: {len(replacements)} ({rbf_type})",
             )
 
     return state
 
 
-def _extract_height(da_payload: Mapping[str, Any]) -> Optional[int]:
+def _extract_height(da_payload: Mapping[str, Any]) -> int | None:
     for key in ("currentBlockHeight", "previousRetargetHeight", "height"):
         value = da_payload.get(key)
         if isinstance(value, int):
@@ -90,7 +91,7 @@ def _extract_height(da_payload: Mapping[str, Any]) -> Optional[int]:
     return None
 
 
-def _detect_rbf_type(replacements: Sequence[Mapping[str, Any]]) -> Optional[str]:
+def _detect_rbf_type(replacements: Sequence[Mapping[str, Any]]) -> str | None:
     if not replacements:
         return None
     latest = replacements[0]

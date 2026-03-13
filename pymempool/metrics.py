@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Mapping, Sequence
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any
 
 DEFAULT_BLOCK_VSIZE = 1_000_000
 
@@ -11,7 +11,7 @@ DEFAULT_BLOCK_VSIZE = 1_000_000
 class FeeBand:
     label: str
     minimum: float
-    maximum: Optional[float]
+    maximum: float | None
     note: str
 
 
@@ -71,7 +71,7 @@ def summarize_projected_block(
 
 def summarize_projected_blocks(
     projected_blocks: Sequence[Mapping[str, Any]],
-    limit: Optional[int] = None,
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """Summarize projected block data for CLI rendering."""
 
@@ -89,7 +89,7 @@ def summarize_projected_blocks(
 
 def classify_queue_shape(
     projected_blocks: Sequence[Mapping[str, Any]],
-    fee_snapshot: Optional[Mapping[str, Any]] = None,
+    fee_snapshot: Mapping[str, Any] | None = None,
 ) -> str:
     """Classify how fee pressure is distributed across the queue."""
 
@@ -118,7 +118,7 @@ def classify_queue_shape(
 def interpret_mempool_condition(
     mempool_info: Mapping[str, Any],
     projected_blocks: Sequence[Mapping[str, Any]],
-    fee_snapshot: Optional[Mapping[str, Any]] = None,
+    fee_snapshot: Mapping[str, Any] | None = None,
 ) -> str:
     """Generate a one-line interpretation of current mempool conditions."""
 
@@ -144,7 +144,10 @@ def interpret_mempool_condition(
         return (
             "Congestion is light: most fee pressure is concentrated in the next block."
         )
-    return "The mempool looks balanced: fees step down gradually across the next few blocks."
+    return (
+        "The mempool looks balanced: fees step down gradually across the next "
+        "few blocks."
+    )
 
 
 def bucket_fee_histogram(

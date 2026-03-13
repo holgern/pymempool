@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Optional
+from typing import Any
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
