@@ -73,6 +73,34 @@ class TestWatchState(unittest.TestCase):
         self.assertEqual(state["rbf_count"], 1)
         self.assertEqual(state["last_rbf_type"], "fullRbf")
 
+    def test_reduce_rate_limit_message(self):
+        state = build_watch_state(
+            height=900000,
+            mempool_info={"count": 10, "vsize": 1000},
+            fees={"fastestFee": 3, "minimumFee": 1},
+            projected_blocks=[],
+        )
+
+        reduce_watch_message(
+            state,
+            {
+                "rate_limit_notice": (
+                    "Cooling down for 8s before retrying host mempool.space."
+                )
+            },
+        )
+
+        self.assertEqual(
+            state["last_rate_limit_notice"],
+            "Cooling down for 8s before retrying host mempool.space.",
+        )
+        self.assertGreater(state["refresh_interval_multiplier"], 1.0)
+
+        reduce_watch_message(state, {"rate_limit_recovered": True})
+
+        self.assertEqual(state["refresh_interval_multiplier"], 1.0)
+        self.assertIsNone(state["last_rate_limit_notice"])
+
 
 if __name__ == "__main__":
     unittest.main()

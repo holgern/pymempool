@@ -27,6 +27,9 @@ def build_watch_state(
         "rbf_count": 0,
         "last_rbf_type": None,
         "last_message_type": None,
+        "cooldown_count": 0,
+        "last_rate_limit_notice": None,
+        "refresh_interval_multiplier": 1.0,
     }
 
 
@@ -79,6 +82,22 @@ def reduce_watch_message(
                 state,
                 f"RBF updates: {len(replacements)} ({rbf_type})",
             )
+
+    if "rate_limit_notice" in message:
+        notice = str(message["rate_limit_notice"])
+        state["last_rate_limit_notice"] = notice
+        state["cooldown_count"] = int(state.get("cooldown_count", 0)) + 1
+        state["refresh_interval_multiplier"] = min(
+            4.0,
+            1.0 + (int(state["cooldown_count"]) * 0.5),
+        )
+        _push_event(state, notice)
+
+    if message.get("rate_limit_recovered"):
+        state["cooldown_count"] = 0
+        state["refresh_interval_multiplier"] = 1.0
+        state["last_rate_limit_notice"] = None
+        _push_event(state, "Rate-limit cooldown cleared")
 
     return state
 

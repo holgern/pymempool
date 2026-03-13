@@ -1,11 +1,15 @@
 import json
 import logging
 import warnings
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
+from urllib.parse import urlparse
 
 import requests
 import urllib3
 from requests.adapters import HTTPAdapter  # type: ignore[import-untyped]
+
+from pymempool.rate_limiter import RateLimiter
+from pymempool.response_cache import _MISSING, ResponseCache
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +32,41 @@ class MempoolResponseError(MempoolAPIError):
     pass
 
 
+class MempoolRateLimitError(MempoolResponseError):
+    """Exception raised when the upstream API asks the client to slow down."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int = 429,
+        host: Optional[str] = None,
+        retry_after_seconds: Optional[float] = None,
+        cooldown_seconds: Optional[float] = None,
+        next_allowed_at: Optional[float] = None,
+        response_payload: Any = None,
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.host = host
+        self.retry_after_seconds = retry_after_seconds
+        self.cooldown_seconds = cooldown_seconds
+        self.next_allowed_at = next_allowed_at
+        self.response_payload = response_payload
+
+
 class MempoolAPI:
     __API_URL_BASE: list = [
         "https://mempool.space/api/",
         "https://mempool.emzy.de/api/",
         "https://mempool.bitcoin-21.org/api/",
     ]
+    _CACHEABLE_GET_ENDPOINTS = {
+        "mempool",
+        "v1/fees/mempool-blocks",
+        "v1/fees/recommended",
+        "v1/fees/precise",
+    }
 
     def __init__(
         self,
@@ -41,26 +74,73 @@ class MempoolAPI:
         retries: int = 3,
         request_verify: bool = True,
         proxies: Optional[dict] = None,
+        rate_limit_per_sec: float = 1.0,
+        rate_limit_burst: int = 5,
+        respect_retry_after: bool = True,
+        enable_response_cache: bool = True,
+        cache_ttl_seconds: float = 3.0,
+        rate_limit_notifier: Optional[Callable[[str], None]] = None,
     ):
+        """Create a mempool.space API client with conservative rate-limit handling.
+
+        Transport retries handle transient upstream failures such as ``502``, ``503``,
+        and ``504``. HTTP ``429`` is handled explicitly in application logic so the
+        client can slow down, honor ``Retry-After``, reuse cached snapshots for hot
+        endpoints, and avoid amplifying pressure across public mirrors.
+        """
+
         self.set_api_base_url(api_base_url)
         self.proxies = proxies
         self.connect_timeout = 1
         self.reading_timeout = 120
         self.sending_timeout = 120
         self.request_verify = request_verify
+        self.respect_retry_after = respect_retry_after
+        self.enable_response_cache = enable_response_cache
+        self._rate_limit_notifier = rate_limit_notifier
+        self._last_notice: Optional[str] = None
         if not request_verify:
             warnings.filterwarnings("ignore", message="Unverified HTTPS request")
         self.session = requests.Session()
+        # 429 used to live inside urllib3's generic retry path and then bubble into
+        # host failover, which could amplify pressure across mirrors. Keep transport
+        # retries for transient 5xx failures and handle 429 explicitly below.
         max_retries = urllib3.Retry(
-            total=retries, backoff_factor=0.1, status_forcelist=[502, 503, 504, 429]
+            total=retries,
+            backoff_factor=0.1,
+            status_forcelist=[502, 503, 504],
+            allowed_methods=frozenset({"GET", "POST"}),
+            raise_on_status=False,
         )
         self.session.mount("https://", HTTPAdapter(max_retries=max_retries))
+        self.rate_limiter = RateLimiter(
+            rate_limit_per_sec=rate_limit_per_sec,
+            rate_limit_burst=rate_limit_burst,
+            notifier=self._emit_notice,
+        )
+        self.response_cache = ResponseCache(
+            ttl_seconds=cache_ttl_seconds,
+            notifier=self._emit_notice,
+        )
 
     def set_api_base_url(self, api_base_url: Union[list, str]) -> None:
         if isinstance(api_base_url, list):
             self.api_base_url = api_base_url
         else:
             self.api_base_url = api_base_url.split(",")
+
+    def _emit_notice(self, message: str) -> None:
+        if not message:
+            return
+        if message == self._last_notice:
+            return
+        self._last_notice = message
+        logger.debug(message)
+        if self._rate_limit_notifier is not None:
+            self._rate_limit_notifier(message)
+
+    def _reset_notice(self) -> None:
+        self._last_notice = None
 
     def _build_url_with_params(
         self, base_url: str, params: Optional[dict] = None
@@ -99,7 +179,7 @@ class MempoolAPI:
             return self.api_base_url[0]
 
     def _request(self, url: str) -> Any:
-        """Make request to the API with failover to alternate APIs.
+        """Make a GET request with cooldown-aware failover and caching.
 
         Args:
             url: The API endpoint to request
@@ -111,29 +191,64 @@ class MempoolAPI:
             MempoolNetworkError: If all API endpoints fail with network errors
             MempoolResponseError: If all API endpoints fail with response errors
         """
-        index = 0
-        last_exception: Optional[Union[MempoolResponseError, Exception]] = None
-        response_errors = []
+        self._reset_notice()
+        if self.enable_response_cache and self._should_cache_endpoint(url):
+            cache_key = self._build_cache_key("GET", url)
+            cached = self.response_cache.get(cache_key)
+            if cached is not _MISSING:
+                return cached
 
-        while index < len(self.api_base_url):
-            complete_url = f"{self.get_api_base_url(index)}{url}"
+            try:
+                return self.response_cache.get_or_load(
+                    cache_key, lambda: self._request_uncached(url)
+                )
+            except MempoolRateLimitError:
+                stale = self.response_cache.get_stale(cache_key)
+                if stale is not _MISSING:
+                    self.response_cache.notify_cached_snapshot()
+                    return stale
+                raise
+
+        return self._request_uncached(url)
+
+    def _request_uncached(self, url: str) -> Any:
+        last_exception: Optional[Union[MempoolResponseError, Exception]] = None
+        response_errors: list[MempoolResponseError] = []
+        rate_limit_errors: list[MempoolRateLimitError] = []
+        attempted_hosts: list[str] = []
+        rate_limit_failovers = 0
+        total_hosts = len(self._available_hosts())
+
+        while len(attempted_hosts) < total_hosts:
+            base_url, host = self._pick_api_base_url(excluded_hosts=attempted_hosts)
+            attempted_hosts.append(host)
+            complete_url = f"{base_url}{url}"
             try:
                 return self.__request(complete_url)
+            except MempoolRateLimitError as e:
+                rate_limit_errors.append(e)
+                last_exception = e
+                if len(self.api_base_url) > 1 and rate_limit_failovers < 1:
+                    remaining_hosts = [
+                        self._extract_host(candidate)
+                        for candidate in self.api_base_url
+                        if self._extract_host(candidate) not in attempted_hosts
+                    ]
+                    if remaining_hosts:
+                        rate_limit_failovers += 1
+                        continue
+                break
             except MempoolResponseError as e:
-                # Don't retry on response errors, just collect them
                 response_errors.append(e)
                 last_exception = e
-                index += 1
             except Exception as e:
-                logger.info(f"Timeout on {complete_url} - {e}")
+                logger.info("Timeout on %s - %s", complete_url, e)
                 last_exception = e
-                index += 1
 
-        # If we collected any response errors, raise the first one
         if response_errors:
             raise response_errors[0]
-
-        # Otherwise raise a network error
+        if rate_limit_errors:
+            raise rate_limit_errors[0]
         raise MempoolNetworkError(f"All API endpoints failed: {last_exception}")
 
     def __request(self, url: str) -> Any:
@@ -150,6 +265,8 @@ class MempoolAPI:
             MempoolResponseError: For API response errors
         """
         logger.info(url)
+        host = self._extract_host(url)
+        self.rate_limiter.wait_until_allowed(host)
         try:
             response = self.session.get(
                 url,
@@ -160,18 +277,16 @@ class MempoolAPI:
         except requests.exceptions.RequestException as e:
             raise MempoolNetworkError(f"Network error: {str(e)}") from e
 
+        if response.status_code == 429:
+            raise self._build_rate_limit_error(response, host)
+
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            # Check if JSON error response is available
-            try:
-                content = json.loads(response.content.decode("utf-8"))
-                raise MempoolResponseError(content) from e
-            except json.decoder.JSONDecodeError:
-                # If no JSON in response, raise original error
-                raise MempoolResponseError(f"HTTP error: {response.status_code}") from e
+            raise self._build_response_error(response, e) from e
 
         # Process successful response
+        self.rate_limiter.record_success(host)
         try:
             decoded_content = response.content.decode("utf-8")
             content = json.loads(decoded_content)
@@ -184,7 +299,7 @@ class MempoolAPI:
             return response.content.decode("utf-8")
 
     def _send(self, url: str, data: Any) -> Any:
-        """Make POST request to the API with failover to alternate APIs.
+        """Make POST request to the API with cooldown-aware failover.
 
         Args:
             url: The API endpoint to request
@@ -197,29 +312,44 @@ class MempoolAPI:
             MempoolNetworkError: If all API endpoints fail with network errors
             MempoolResponseError: If all API endpoints fail with response errors
         """
-        index = 0
+        self._reset_notice()
         last_exception: Optional[Union[MempoolResponseError, Exception]] = None
-        response_errors = []
+        response_errors: list[MempoolResponseError] = []
+        rate_limit_errors: list[MempoolRateLimitError] = []
+        attempted_hosts: list[str] = []
+        rate_limit_failovers = 0
+        total_hosts = len(self._available_hosts())
 
-        while index < len(self.api_base_url):
-            complete_url = f"{self.get_api_base_url(index)}{url}"
+        while len(attempted_hosts) < total_hosts:
+            base_url, host = self._pick_api_base_url(excluded_hosts=attempted_hosts)
+            attempted_hosts.append(host)
+            complete_url = f"{base_url}{url}"
             try:
                 return self.__send(complete_url, data)
+            except MempoolRateLimitError as e:
+                rate_limit_errors.append(e)
+                last_exception = e
+                if len(self.api_base_url) > 1 and rate_limit_failovers < 1:
+                    remaining_hosts = [
+                        self._extract_host(candidate)
+                        for candidate in self.api_base_url
+                        if self._extract_host(candidate) not in attempted_hosts
+                    ]
+                    if remaining_hosts:
+                        rate_limit_failovers += 1
+                        continue
+                break
             except MempoolResponseError as e:
-                # Don't retry on response errors, just collect them
                 response_errors.append(e)
                 last_exception = e
-                index += 1
             except Exception as e:
-                logger.info(f"Timeout on {complete_url} - {e}")
+                logger.info("Timeout on %s - %s", complete_url, e)
                 last_exception = e
-                index += 1
 
-        # If we collected any response errors, raise the first one
         if response_errors:
             raise response_errors[0]
-
-        # Otherwise raise a network error
+        if rate_limit_errors:
+            raise rate_limit_errors[0]
         raise MempoolNetworkError(f"All API endpoints failed: {last_exception}")
 
     def __send(self, url: str, data: Any) -> Any:
@@ -237,6 +367,8 @@ class MempoolAPI:
             MempoolResponseError: For API response errors
         """
         logger.info(url)
+        host = self._extract_host(url)
+        self.rate_limiter.wait_until_allowed(host)
         try:
             req = requests.Request("POST", url, data=data)
             prepped = req.prepare()
@@ -244,22 +376,107 @@ class MempoolAPI:
                 prepped,
                 timeout=(self.connect_timeout, self.sending_timeout),
                 verify=self.request_verify,
+                proxies=self.proxies,
             )
         except requests.exceptions.RequestException as e:
             raise MempoolNetworkError(f"Network error: {str(e)}") from e
 
+        if response.status_code == 429:
+            raise self._build_rate_limit_error(response, host)
+
         try:
             response.raise_for_status()
+            self.rate_limiter.record_success(host)
             content = response.content.decode("utf-8")
             return content
         except requests.exceptions.HTTPError as e:
-            # Check if JSON error response is available
+            raise self._build_response_error(response, e) from e
+
+    def _build_cache_key(self, method: str, url: str) -> str:
+        return f"{method}:{url}"
+
+    def _should_cache_endpoint(self, url: str) -> bool:
+        return url in self._CACHEABLE_GET_ENDPOINTS
+
+    def _extract_host(self, url: str) -> str:
+        parsed = urlparse(url)
+        return parsed.netloc or url
+
+    def _pick_api_base_url(
+        self, excluded_hosts: Optional[list[str]] = None
+    ) -> tuple[str, str]:
+        host_lookup: dict[str, str] = {}
+        for base_url in self.api_base_url:
+            host = self._extract_host(base_url)
+            if excluded_hosts and host in excluded_hosts:
+                continue
+            host_lookup.setdefault(host, base_url)
+
+        host = self.rate_limiter.pick_host(
+            list(host_lookup.keys()), excluded_hosts=excluded_hosts
+        )
+        return host_lookup[host], host
+
+    def _available_hosts(self) -> list[str]:
+        return list({self._extract_host(base_url) for base_url in self.api_base_url})
+
+    def _parse_retry_after(self, response: requests.Response) -> Optional[float]:
+        retry_after = response.headers.get("Retry-After")
+        if not retry_after or not self.respect_retry_after:
+            return None
+
+        try:
+            parsed = max(float(int(retry_after.strip())), 0.0)
+            logger.debug("Parsed Retry-After=%s for %s", parsed, response.url)
+            return parsed
+        except (TypeError, ValueError):
+            logger.debug("Could not parse Retry-After header %r", retry_after)
+            return None
+
+    def _decode_error_payload(self, response: requests.Response) -> Any:
+        try:
+            return json.loads(response.content.decode("utf-8"))
+        except (UnicodeDecodeError, json.decoder.JSONDecodeError):
             try:
-                content = response.content.decode("utf-8")
-                raise MempoolResponseError(content) from e
-            except json.decoder.JSONDecodeError:
-                # If no JSON in response, raise original error
-                raise MempoolResponseError(f"HTTP error: {response.status_code}") from e
+                return response.content.decode("utf-8")
+            except UnicodeDecodeError:
+                return response.content
+
+    def _build_rate_limit_error(
+        self, response: requests.Response, host: str
+    ) -> MempoolRateLimitError:
+        retry_after_seconds = self._parse_retry_after(response)
+        cooldown_seconds = self.rate_limiter.punish_429(
+            host,
+            retry_after=retry_after_seconds,
+            attempt=self._current_rate_limit_attempt(host),
+        )
+        next_allowed_at = self.rate_limiter.get_next_allowed_at(host)
+        payload = self._decode_error_payload(response)
+        message = (
+            f"HTTP 429 from {host}; retry_after={retry_after_seconds}; "
+            f"cooldown={cooldown_seconds:.2f}s"
+        )
+        return MempoolRateLimitError(
+            message,
+            host=host,
+            retry_after_seconds=retry_after_seconds,
+            cooldown_seconds=cooldown_seconds,
+            next_allowed_at=next_allowed_at,
+            response_payload=payload,
+        )
+
+    def _current_rate_limit_attempt(self, host: str) -> int:
+        budget = self.rate_limiter.get_budget(host)
+        return max(1, budget.recent_429s)
+
+    def _build_response_error(
+        self, response: requests.Response, error: requests.exceptions.HTTPError
+    ) -> MempoolResponseError:
+        content = self._decode_error_payload(response)
+        if content:
+            return MempoolResponseError(content)
+        return MempoolResponseError(f"HTTP error: {response.status_code}")
 
     def get_price(self):
         """Returns bitcoin latest price denominated in main currencies."""

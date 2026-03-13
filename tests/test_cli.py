@@ -3,6 +3,7 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 
 from pymempool.cli import app
+from pymempool.watch_state import build_watch_state, reduce_watch_message
 
 runner = CliRunner()
 
@@ -69,6 +70,21 @@ class DummyAPI:
         return self.payloads["tip_height"]
 
 
+class DummyRateLimitAPI(DummyAPI):
+    def __init__(self, *args, **kwargs):
+        self.notifier = kwargs.get("rate_limit_notifier")
+        super().__init__(*args, **kwargs)
+        self._calls = 0
+
+    def get_mempool(self):
+        if self.notifier is not None and self._calls == 0:
+            self.notifier("Rate limited by API; slowing requests.")
+            self.notifier("Cooling down for 8s before retrying host mempool.space.")
+            self.notifier("Using cached snapshot while upstream rate limit clears.")
+        self._calls += 1
+        return self.payloads["mempool"]
+
+
 @patch("pymempool.cli.MempoolAPI", DummyAPI)
 def test_overview_renders_core_sections():
     result = runner.invoke(app, ["overview", "--blocks", "3"])
@@ -115,3 +131,39 @@ def test_stream_only_starts_one_client():
 
     assert result.exit_code == 0
     assert len(run_calls) == 1
+
+
+@patch("pymempool.cli.MempoolAPI", DummyRateLimitAPI)
+def test_cli_shows_rate_limit_notices_and_uses_cached_snapshot():
+    result = runner.invoke(app, ["overview"])
+
+    assert result.exit_code == 0
+    assert "Rate limited by API; slowing requests." in result.output
+    assert "Cooling down for 8s before retrying host mempool.space." in result.output
+    assert "Using cached snapshot while upstream rate limit clears." in result.output
+
+
+def test_watch_state_tracks_rate_limit_notice_and_refresh_multiplier():
+    state = build_watch_state(
+        height=900000,
+        mempool_info={"count": 10, "vsize": 1000},
+        fees={"fastestFee": 3, "minimumFee": 1},
+        projected_blocks=[],
+    )
+
+    reduce_watch_message(
+        state,
+        {
+            "rate_limit_notice": (
+                "Cooling down for 8s before retrying host mempool.space."
+            )
+        },
+    )
+
+    assert state["last_rate_limit_notice"] is not None
+    assert state["refresh_interval_multiplier"] > 1.0
+
+    reduce_watch_message(state, {"rate_limit_recovered": True})
+
+    assert state["last_rate_limit_notice"] is None
+    assert state["refresh_interval_multiplier"] == 1.0

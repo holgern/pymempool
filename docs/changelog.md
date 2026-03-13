@@ -6,6 +6,7 @@
 - Fixed duplicate websocket startup in `pymempool stream`.
 - Added wrappers for precise fees, recent mempool entries, and block audit summaries.
 - Normalized recommended fee payload handling across camelCase and snake_case fields.
+- Added conservative per-host rate limiting, explicit HTTP `429` handling, and short-lived caching for hot REST endpoints.
 - Updated docs and examples to match the current public API.
 
 ## 0.0.2 / 2022-06-03

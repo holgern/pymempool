@@ -92,6 +92,32 @@ client = MempoolWebSocketClient(want_data=["stats", "mempool-blocks"])
 print(client.build_subscription_payloads())
 ```
 
+## Rate Limiting
+
+`pymempool` now treats HTTP `429 Too Many Requests` as back-pressure instead of a
+generic fast retry. The client:
+
+- rate-limits itself before sending REST requests with conservative per-host defaults
+- honors integer `Retry-After` headers when present
+- applies exponential backoff with jitter when `Retry-After` is absent
+- keeps cooldown state per host so failover stays resilient without turning into rate-limit evasion
+- reuses short-lived cached snapshots for hot endpoints like fees, mempool summary, and projected blocks
+- prefers WebSocket flows for live dashboards so `watch` and `stream` do not depend on tight REST polling
+
+You can tune the policy via `MempoolAPI(...)`:
+
+```python
+from pymempool import MempoolAPI
+
+mp = MempoolAPI(
+    rate_limit_per_sec=1.0,
+    rate_limit_burst=5,
+    respect_retry_after=True,
+    enable_response_cache=True,
+    cache_ttl_seconds=3.0,
+)
+```
+
 ## Development
 
 Install dev and test dependencies:

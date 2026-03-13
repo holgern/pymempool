@@ -4,7 +4,24 @@ import pytest
 import responses
 
 from pymempool import MempoolAPI
-from pymempool.api import MempoolNetworkError, MempoolResponseError
+from pymempool.api import (
+    MempoolNetworkError,
+    MempoolRateLimitError,
+    MempoolResponseError,
+)
+
+
+class FakeClock:
+    def __init__(self, start: float = 0.0):
+        self.current = start
+        self.sleeps: list[float] = []
+
+    def time(self) -> float:
+        return self.current
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.current += seconds
 
 
 class TestWrapper(unittest.TestCase):
@@ -223,3 +240,201 @@ class TestWrapper(unittest.TestCase):
             block_hash
         )
         self.assertEqual(response, res_json)
+
+    @responses.activate
+    def test_429_with_retry_after_raises_rate_limit_error_and_sets_cooldown(self):
+        base_api_url = "https://mempool.space/api/"
+        clock = FakeClock()
+        responses.add(
+            responses.GET,
+            f"{base_api_url}mempool",
+            status=429,
+            headers={"Retry-After": "8"},
+            body='{"error":"slow down"}',
+        )
+
+        api = MempoolAPI(api_base_url=base_api_url)
+        api.rate_limiter._time_func = clock.time
+        api.rate_limiter._sleep_func = clock.sleep
+        api.response_cache._time_func = clock.time
+
+        with pytest.raises(MempoolRateLimitError) as exc:
+            api.get_mempool()
+
+        assert exc.value.retry_after_seconds == 8.0
+        assert exc.value.cooldown_seconds == 8.0
+        assert exc.value.host == "mempool.space"
+
+    @responses.activate
+    def test_429_without_retry_after_uses_backoff_jitter(self):
+        base_api_url = "https://mempool.space/api/"
+        clock = FakeClock()
+        responses.add(
+            responses.GET,
+            f"{base_api_url}mempool",
+            status=429,
+            body='{"error":"slow down"}',
+        )
+
+        api = MempoolAPI(api_base_url=base_api_url)
+        api.rate_limiter._time_func = clock.time
+        api.rate_limiter._sleep_func = clock.sleep
+        api.rate_limiter._random_func = lambda _a, _b: 0.5
+        api.response_cache._time_func = clock.time
+
+        with pytest.raises(MempoolRateLimitError) as exc:
+            api.get_mempool()
+
+        assert exc.value.retry_after_seconds is None
+        assert exc.value.cooldown_seconds == 1.0
+
+    @responses.activate
+    def test_repeated_429s_increase_cooldown(self):
+        base_api_url = "https://mempool.space/api/"
+        clock = FakeClock()
+        responses.add(
+            responses.GET,
+            f"{base_api_url}address/test",
+            status=429,
+            body='{"error":"slow down"}',
+        )
+        responses.add(
+            responses.GET,
+            f"{base_api_url}address/test",
+            status=429,
+            body='{"error":"slow down again"}',
+        )
+
+        api = MempoolAPI(api_base_url=base_api_url, enable_response_cache=False)
+        api.rate_limiter._time_func = clock.time
+        api.rate_limiter._sleep_func = clock.sleep
+        api.rate_limiter._random_func = lambda _a, _b: 0.0
+
+        with pytest.raises(MempoolRateLimitError) as first:
+            api.get_address("test")
+        with pytest.raises(MempoolRateLimitError) as second:
+            api.get_address("test")
+
+        assert first.value.cooldown_seconds == 0.5
+        assert second.value.cooldown_seconds == 1.0
+
+    @responses.activate
+    def test_rate_limited_host_fails_over_once_to_next_host(self):
+        primary = "https://mempool.space/api/"
+        fallback = "https://mempool.emzy.de/api/"
+        responses.add(
+            responses.GET,
+            f"{primary}address/test",
+            status=429,
+            body='{"error":"slow down"}',
+        )
+        responses.add(
+            responses.GET,
+            f"{fallback}address/test",
+            json={"ok": True},
+            status=200,
+        )
+
+        api = MempoolAPI(
+            api_base_url=f"{primary},{fallback}", enable_response_cache=False
+        )
+        result = api.get_address("test")
+
+        assert result == {"ok": True}
+        assert len(responses.calls) == 2
+
+    @responses.activate
+    def test_all_hosts_cooling_down_waits_for_earliest_host(self):
+        primary = "https://mempool.space/api/"
+        fallback = "https://mempool.emzy.de/api/"
+        clock = FakeClock()
+        api = MempoolAPI(
+            api_base_url=f"{primary},{fallback}", enable_response_cache=False
+        )
+        api.rate_limiter._time_func = clock.time
+        api.rate_limiter._sleep_func = clock.sleep
+        api.rate_limiter.punish_429("mempool.space", retry_after=5.0, attempt=1)
+        api.rate_limiter.punish_429("mempool.emzy.de", retry_after=2.0, attempt=1)
+
+        responses.add(
+            responses.GET,
+            f"{fallback}address/test",
+            json={"ok": True},
+            status=200,
+        )
+
+        result = api.get_address("test")
+
+        assert result == {"ok": True}
+        assert clock.sleeps == [2.0]
+
+    @responses.activate
+    def test_cache_reuses_hot_endpoint_within_ttl(self):
+        base_api_url = "https://mempool.space/api/"
+        clock = FakeClock()
+        responses.add(
+            responses.GET,
+            f"{base_api_url}mempool",
+            json={"count": 1, "vsize": 2},
+            status=200,
+        )
+
+        api = MempoolAPI(api_base_url=base_api_url, cache_ttl_seconds=3.0)
+        api.rate_limiter._time_func = clock.time
+        api.rate_limiter._sleep_func = clock.sleep
+        api.response_cache._time_func = clock.time
+
+        first = api.get_mempool()
+        second = api.get_mempool()
+
+        assert first == second == {"count": 1, "vsize": 2}
+        assert len(responses.calls) == 1
+
+    @responses.activate
+    def test_rate_limited_hot_endpoint_returns_stale_cache(self):
+        base_api_url = "https://mempool.space/api/"
+        clock = FakeClock()
+        responses.add(
+            responses.GET,
+            f"{base_api_url}mempool",
+            json={"count": 1, "vsize": 2},
+            status=200,
+        )
+        responses.add(
+            responses.GET,
+            f"{base_api_url}mempool",
+            status=429,
+            body='{"error":"slow down"}',
+        )
+
+        notices: list[str] = []
+        api = MempoolAPI(
+            api_base_url=base_api_url,
+            cache_ttl_seconds=1.0,
+            rate_limit_notifier=notices.append,
+        )
+        api.rate_limiter._time_func = clock.time
+        api.rate_limiter._sleep_func = clock.sleep
+        api.response_cache._time_func = clock.time
+
+        first = api.get_mempool()
+        clock.current = 2.0
+        second = api.get_mempool()
+
+        assert first == second == {"count": 1, "vsize": 2}
+        assert "Using cached snapshot while upstream rate limit clears." in notices
+
+    @responses.activate
+    def test_non_429_response_errors_still_raise_response_error(self):
+        base_api_url = "https://mempool.space/api/"
+        responses.add(
+            responses.GET,
+            f"{base_api_url}address/test",
+            status=404,
+            json={"error": "not found"},
+        )
+
+        with pytest.raises(MempoolResponseError):
+            MempoolAPI(
+                api_base_url=base_api_url, enable_response_cache=False
+            ).get_address("test")

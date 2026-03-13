@@ -1,6 +1,8 @@
 import asyncio
 import datetime
+import functools
 import logging
+from collections.abc import Callable
 from typing import Any, Optional
 
 import typer
@@ -8,7 +10,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from pymempool.api import MempoolAPI
+from pymempool.api import MempoolAPI, MempoolRateLimitError
 from pymempool.ascii_mempool_blocks import AsciiMempoolBlocks
 from pymempool.block_parser import BlockParser
 from pymempool.cli_views import (
@@ -44,7 +46,31 @@ DEFAULT_WANT = ["stats", "mempool-blocks"]
 def get_api() -> MempoolAPI:
     """Return the configured API client."""
 
-    return MempoolAPI(api_base_url=state.get("api", DEFAULT_API))
+    return MempoolAPI(
+        api_base_url=state.get("api", DEFAULT_API),
+        rate_limit_notifier=_cli_rate_limit_notice,
+    )
+
+
+def _cli_rate_limit_notice(message: str) -> None:
+    console.print(message, style="bold yellow")
+
+
+def handle_rate_limit(command: Callable[..., Any]) -> Callable[..., Any]:
+    """Convert expected rate-limit errors into compact CLI output."""
+
+    @functools.wraps(command)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return command(*args, **kwargs)
+        except MempoolRateLimitError:
+            console.print(
+                "Upstream API is still rate limiting requests; please retry shortly.",
+                style="bold yellow",
+            )
+            raise typer.Exit(code=1) from None
+
+    return wrapper
 
 
 def _normalized_fee_snapshot(
@@ -104,6 +130,7 @@ async def display_consumer(queue: asyncio.Queue):
 
 
 @app.command()
+@handle_rate_limit
 def mempool_blocks(
     width: int = typer.Option(24, help="Width of each block"),
     height: int = typer.Option(9, help="Height of each block"),
@@ -180,6 +207,7 @@ def mempool_blocks(
 
 
 @app.command()
+@handle_rate_limit
 def ladder(
     limit: int = typer.Option(8, help="Number of projected blocks to display"),
     ascii: bool = typer.Option(False, help="Render the legacy ASCII block view"),
@@ -204,6 +232,7 @@ def ladder(
 
 
 @app.command()
+@handle_rate_limit
 def blocks(
     limit: int = typer.Option(10, help="Number of blocks to retrieve"),
     start_height: int = typer.Option(
@@ -277,6 +306,7 @@ def blocks(
 
 
 @app.command()
+@handle_rate_limit
 def halving():
     """Returns details about next Bitcoin halving."""
 
@@ -312,6 +342,7 @@ def halving():
 
 
 @app.command()
+@handle_rate_limit
 def mempool():
     """Returns details about mempool."""
 
@@ -321,6 +352,7 @@ def mempool():
 
 
 @app.command()
+@handle_rate_limit
 def fees(
     precise: bool = typer.Option(
         False,
@@ -349,6 +381,7 @@ def fees(
 
 
 @app.command()
+@handle_rate_limit
 def overview(
     precise_fees: bool = typer.Option(
         False,
@@ -382,6 +415,7 @@ def overview(
 
 
 @app.command()
+@handle_rate_limit
 def pressure():
     """Show where mempool backlog sits across fee-rate bands."""
 
@@ -389,6 +423,7 @@ def pressure():
 
 
 @app.command()
+@handle_rate_limit
 def address(address: str):
     """Returns details about an address."""
 
@@ -398,6 +433,7 @@ def address(address: str):
 
 
 @app.command()
+@handle_rate_limit
 def block(hash: str):
     """Returns details about a block."""
 
@@ -430,6 +466,7 @@ class WatchRenderer:
 
 
 @app.command()
+@handle_rate_limit
 def watch(
     rbf: str = typer.Option("off", help="Track RBF replacements: all, fullRbf, off"),
     refresh_interval: float = typer.Option(1.0, min=0.1, help="Live refresh interval"),

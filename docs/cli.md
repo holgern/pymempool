@@ -79,6 +79,10 @@ Options:
 - `--no-color`: disable Rich color output
 - `--verbose`: show extra live diagnostics
 
+When upstream rate limiting appears, the dashboard keeps the last good snapshot,
+shows a compact cooldown notice, and stretches its effective refresh cadence until
+the cooldown clears.
+
 ## Existing commands
 
 ### `pymempool blocks`
@@ -145,6 +149,15 @@ Stream raw websocket events from a single websocket client lifecycle:
 ```bash
 pymempool stream --want stats --want mempool-blocks
 ```
+
+## Rate-limit behavior
+
+CLI commands print short notices such as `Rate limited by API; slowing requests.`
+and `Using cached snapshot while upstream rate limit clears.` when the client is
+protecting the upstream API. This is expected behavior for shared public endpoints.
+
+For live monitoring, prefer `watch` and `stream`, which use WebSocket updates rather
+than frequent REST polling loops.
 
 ## Help
 

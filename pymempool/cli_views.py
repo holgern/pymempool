@@ -152,15 +152,20 @@ def build_watch_layout(
     top.add_column()
     top.add_column()
     fee_snapshot_renderable: RenderableType = _build_fee_snapshot(fees)
+    effective_refresh = refresh_interval * float(
+        state.get("refresh_interval_multiplier", 1.0)
+    )
     top.add_row(
         f"Height: {state.get('height', 'n/a')}",
-        f"Refresh: {refresh_interval:.1f}s",
+        f"Refresh: {effective_refresh:.1f}s",
     )
     top.add_row(
         f"Txs: {mempool_info.get('count', 0):,}",
         f"VSize: {format_vbytes(int(mempool_info.get('vsize', 0)))}",
     )
     top.add_row(fee_snapshot_renderable, "")
+    if state.get("last_rate_limit_notice"):
+        top.add_row(str(state["last_rate_limit_notice"]), "cached snapshot")
 
     events = Table(title="Recent Events")
     events.add_column("Event")
